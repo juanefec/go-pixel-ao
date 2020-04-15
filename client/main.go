@@ -256,9 +256,8 @@ func (pd *PlayersData) playersUpdate(s *socket.Socket) {
 					pd.CurrentAnimations[id] = &np
 					player, _ = pd.CurrentAnimations[id]
 				}
-				player.updateOnline(props)
-				(*pd.CurrentAnimations[id]) = *player
 				pd.AnimationsMutex.Unlock()
+				player.updateOnline(props)
 
 			}
 		}
@@ -384,9 +383,9 @@ func (p *Player) getNextBodyFrame(dirFrames []int) pixel.Rect {
 	dt := time.Since(p.last).Seconds()
 	p.last = time.Now()
 	if p.moving {
-		if (p.bodyStep <= 5 && (p.dir == "up" || p.dir == "down")) || (p.bodyStep <= 4 && (p.dir == "right" || p.dir == "left")) {
-			p.bodyStep += 10 * dt
-			newFrame := int(p.bodyStep)
+		p.bodyStep += 11 * dt
+		newFrame := int(p.bodyStep)
+		if (newFrame <= 5 && (p.dir == "up" || p.dir == "down")) || (newFrame <= 4 && (p.dir == "right" || p.dir == "left")) {
 			return p.bodyFrames[dirFrames[newFrame]]
 		}
 		p.bodyStep = 0
