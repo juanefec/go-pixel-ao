@@ -39,6 +39,7 @@ func SocketServer(port int) {
 	hub := newHub()
 	go hub.run()
 
+	for {
 		conn, err := listen.Accept()
 		if err != nil {
 			log.Fatalln(err)
