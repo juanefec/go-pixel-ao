@@ -1,0 +1,24 @@
+syntax = "proto3";
+package events;
+message Vector {
+    float x = 1;
+    float y = 2;
+}
+
+
+message ApocaEvent {
+    bytes owner = 1;
+    string name = 2;
+    Vector pos = 3;
+   
+}
+  
+  
+message Player {
+    bytes id = 1;
+    string name = 2;
+    Vector pos = 3;
+    string dir = 4;
+    bool moving = 5;
+  }
+  

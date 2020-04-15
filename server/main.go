@@ -116,13 +116,17 @@ func (h *Hub) run() {
 			}
 		case message := <-h.broadcast:
 			for client := range h.clients {
-				id := (strings.Split(string(message), ";"))[0][0:]
-				if client.ID.String() != id && len(id) == 27 {
-					select {
-					case client.send <- message:
-					default:
-						close(client.send)
-						delete(h.clients, client)
+				data := strings.Split(string(message), "|")
+				if len(data) == 2 {
+					smessage := data[1]
+					id := strings.Split(smessage, ";")[0]
+					if client.ID.String() != id && len(id) == 27 {
+						select {
+						case client.send <- message:
+						default:
+							close(client.send)
+							delete(h.clients, client)
+						}
 					}
 				}
 			}
@@ -192,7 +196,7 @@ func (c *Client) readPump() {
 			if isPrefix {
 				continue
 			}
-
+			//log.Printf("Receiving")
 			if len(bytes.Split(data.Bytes(), []byte(";"))) == 6 {
 				//log.Printf("Receive: %v\n", string(data.Bytes()))
 				c.hub.broadcast <- data.Bytes()
@@ -209,11 +213,9 @@ func (c *Client) readPump() {
 // application ensures that there is at most one writer to a connection by
 // executing all writes from this goroutine.
 func (c *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-		(*c.conn).Close()
-	}()
+
+	defer (*c.conn).Close()
+
 	var w = bufio.NewWriter(*c.conn)
 	for {
 		for message := range c.send {
@@ -229,6 +231,8 @@ func (c *Client) writePump() {
 }
 
 func makeMessage(d []byte) []byte {
-	d = append(d, Newline...)
+	if d[len(d)-1] != Newline[0] {
+		d = append(d, Newline...)
+	}
 	return d
 }
