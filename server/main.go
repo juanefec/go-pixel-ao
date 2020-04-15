@@ -147,8 +147,6 @@ type Client struct {
 
 	hub *Hub
 
-	pos Vec
-
 	// The websocket connection.
 	conn *net.Conn
 
