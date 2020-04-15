@@ -15,16 +15,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const (
-	Message       = "Pong"
-	StopCharacter = "\r\n\r\n"
-)
-
-type Vec struct {
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
-}
-
 func main() {
 
 	port := 3333
@@ -49,11 +39,7 @@ func SocketServer(port int) {
 	hub := newHub()
 	go hub.run()
 
-	conns := []*net.Conn{}
-
-	for {
 		conn, err := listen.Accept()
-		conns = append(conns, &conn)
 		if err != nil {
 			log.Fatalln(err)
 			continue
@@ -223,7 +209,7 @@ func (c *Client) writePump() {
 				println(err.Error())
 				return
 			}
-			//log.Println("Send:", string(message))
+			//log.Printf("Send: %v|END", string(message))
 		}
 	}
 }

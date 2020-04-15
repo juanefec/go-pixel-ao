@@ -1,14 +1,11 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"image"
 	"log"
 	"math"
 	"math/rand"
-	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -20,21 +17,18 @@ import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/faiface/pixel/text"
+	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/segmentio/ksuid"
 	"golang.org/x/image/colornames"
 	"golang.org/x/image/font/basicfont"
 )
 
 var (
-	camPos       = pixel.ZV
-	camSpeed     = 200.0
-	camZoom      = 1.0
-	camZoomSpeed = 1.2
-	frames       = 0
-	second       = time.Tick(time.Second)
-	player       = Player{
-		dir: "down",
-	}
+	camSpeed  = 200.0
+	Zoom      = 1.0
+	ZoomSpeed = 1.2
+	frames    = 0
+	second    = time.Tick(time.Second)
 )
 var (
 	Newline      = []byte{'\n'}
@@ -49,73 +43,6 @@ var (
 	Pictures map[string]pixel.Picture
 )
 
-func SocketClient(ip string, port int, clientID *ksuid.KSUID, player *Player, otherPlayers *PlayersData, i, o chan []byte) *net.Conn {
-
-	addr := strings.Join([]string{ip, strconv.Itoa(port)}, ":")
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		log.Fatalln(err)
-		os.Exit(1)
-	}
-
-	reader := bufio.NewReader(conn)
-	for *clientID == ksuid.Nil {
-		data, _, _ := reader.ReadLine()
-		if len(data) == 20 {
-			fmt.Println(string(data))
-			_ = clientID.UnmarshalBinary(data)
-		}
-	}
-	fmt.Println("socket")
-	go reciver(&conn, i)
-	go sender(&conn, o)
-	go playersUpdate(i, otherPlayers)
-	return &conn
-}
-
-func playersUpdate(updatePlayers chan []byte, otherPlayers *PlayersData) {
-	for {
-		select {
-		case data := <-updatePlayers:
-			text := string(data)
-			props := strings.Split(text, ";")
-			if len(props) == 6 {
-				id, _ := ksuid.Parse(props[0])
-				x, _ := strconv.ParseFloat(props[2], 64)
-				y, _ := strconv.ParseFloat(props[3], 64)
-				pos := pixel.V(x, y)
-				otherPlayers.AnimationsMutex.Lock()
-				player, ok := otherPlayers.CurrentAnimations[id]
-				if !ok {
-					np := NewPlayer(&pos)
-					otherPlayers.CurrentAnimations[id] = &np
-					player, _ = otherPlayers.CurrentAnimations[id]
-				}
-				player.updateOnline(props)
-				(*otherPlayers.CurrentAnimations[id]) = *player
-				otherPlayers.AnimationsMutex.Unlock()
-
-			}
-		}
-	}
-}
-
-func clientUpdate(updateClient chan []byte, player *Player, clientID ksuid.KSUID) {
-	data := []string{}
-	id := clientID.String()
-	data = []string{
-		id,
-		"name",
-		fmt.Sprint(player.pos.X),
-		fmt.Sprint(player.pos.Y),
-		player.dir,
-		fmt.Sprint(player.moving),
-	}
-	message := strings.Join(data, ";")
-	updateClient <- makeMessage([]byte(message))
-
-}
-
 func makeMessage(d []byte) []byte {
 	d = append(d, Newline...)
 	return d
@@ -127,39 +54,6 @@ const (
 )
 
 //message order [id;name;playerX;playerY;dir;moving]
-
-func reciver(conn *net.Conn, updatePlayers chan []byte) {
-	var buffer bytes.Buffer
-	r := bufio.NewReader(*conn)
-	for {
-		data, isPrefix, err := r.ReadLine()
-		if err == nil {
-			buffer.Write(data)
-			if isPrefix {
-				continue
-			}
-
-			updatePlayers <- data
-
-			//log.Printf("Receive: %s", data)
-			buffer = bytes.Buffer{}
-		}
-	}
-}
-
-func sender(conn *net.Conn, updateClient chan []byte) {
-	var w = bufio.NewWriter(*conn)
-
-	for {
-		select {
-		case message := <-updateClient:
-
-			w.Write(message)
-			w.Flush()
-			//log.Printf("Send: %s", message)
-		}
-	}
-}
 
 func run() {
 	Pictures = loadPictures(
@@ -173,15 +67,13 @@ func run() {
 	apocaData := NewApocaData()
 	forest := NewForest()
 	otherPlayers := NewPlayersData()
-	var clientID ksuid.KSUID
-	updatePlayers := make(chan []byte)
-	updateClient := make(chan []byte)
-	conn := SocketClient("127.0.0.1", 3333, &clientID, &player, &otherPlayers, updatePlayers, updateClient)
-	defer (*conn).Close()
+
+	socket := socket.NewSocket("127.0.0.1", 3333)
+	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
 		Title:  "Creative AO",
-		Bounds: pixel.R(0, 0, 1500, 860),
+		Bounds: pixel.R(0, 0, 500, 500),
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -189,19 +81,19 @@ func run() {
 		panic(err)
 	}
 
-	go keyInputs(win, &player, &camPos)
+	go keyInputs(win, &player)
+	go otherPlayers.playersUpdate(socket)
 
 	for !win.Closed() {
 		apocaData.Batch.Clear()
 
-		cam := pixel.IM.Scaled(camPos, camZoom).Moved(win.Bounds().Center().Sub(camPos))
+		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
 		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
 
 		apocaData.Update(win, cam)
 		player.Update()
-		player.moving = false
-		camZoom *= math.Pow(camZoomSpeed, win.MouseScroll().Y)
+		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
 		otherPlayers.Draw(win)
 		player.body.Draw(win, player.bodyMatrix)
 		player.head.Draw(win, player.headMatrix)
@@ -219,7 +111,7 @@ func run() {
 		default:
 		}
 		win.Update()
-		clientUpdate(updateClient, &player, clientID)
+		player.clientUpdate(socket)
 
 	}
 }
@@ -296,9 +188,10 @@ type Apoca struct {
 func (a *Apoca) NextFrame(apocaFrames []pixel.Rect) (pixel.Rect, bool) {
 	dt := time.Since(a.last).Seconds()
 	a.last = time.Now()
-	if a.frameNumber <= float64(len(ApocaFrames))-1 {
-		a.frameNumber += 15 * dt
-		return apocaFrames[ApocaFrames[int(a.frameNumber)]], false
+	a.frameNumber += 21 * dt
+	i := int(a.frameNumber)
+	if i <= len(ApocaFrames)-1 {
+		return apocaFrames[ApocaFrames[i]], false
 	}
 	a.frameNumber = .0
 	return apocaFrames[ApocaFrames[0]], true
@@ -341,18 +234,44 @@ func NewPlayersData() PlayersData {
 		AnimationsMutex:   &sync.RWMutex{},
 	}
 }
+func (pd *PlayersData) playersUpdate(s *socket.Socket) {
+	for {
+		select {
+		case data := <-s.I:
+			text := string(data)
+			props := strings.Split(text, ";")
+			if len(props) == 6 {
+				id, _ := ksuid.Parse(props[0])
+				x, _ := strconv.ParseFloat(props[2], 64)
+				y, _ := strconv.ParseFloat(props[3], 64)
+				pos := pixel.V(x, y)
+				pd.AnimationsMutex.Lock()
+				player, ok := pd.CurrentAnimations[id]
+				if !ok {
+					np := NewPlayer(&pos)
+					np.bodyPic = pd.BodyPic
+					np.headPic = pd.HeadPic
+					np.bodyFrames = pd.BodyFrames
+					np.headFrames = pd.HeadFrames
+					pd.CurrentAnimations[id] = &np
+					player, _ = pd.CurrentAnimations[id]
+				}
+				player.updateOnline(props)
+				(*pd.CurrentAnimations[id]) = *player
+				pd.AnimationsMutex.Unlock()
+
+			}
+		}
+	}
+}
 
 func (pd *PlayersData) Draw(win *pixelgl.Window) {
 	pd.BodyBatch.Clear()
 	pd.HeadBatch.Clear()
 	pd.AnimationsMutex.Lock()
 	for key := range pd.CurrentAnimations {
-		player := (*pd.CurrentAnimations[key])
-		player.bodyPic = pd.BodyPic
-		player.headPic = pd.HeadPic
-		player.bodyFrames = pd.BodyFrames
-		player.headFrames = pd.HeadFrames
-		(*pd.CurrentAnimations[key]) = *player.Update()
+		player := pd.CurrentAnimations[key]
+		player.Update()
 		player.body.Draw(pd.BodyBatch, player.bodyMatrix)
 		player.head.Draw(pd.HeadBatch, player.headMatrix)
 		//player.name.Draw(win, player.nameMatrix)
@@ -403,11 +322,36 @@ func NewPlayer(pos *pixel.Vec) Player {
 	p.headFrames = headFrames
 	p.bodyPic = &bodySheet
 	p.headPic = &headSheet
+	p.dir = "down"
 	p.pos = pixel.ZV
 	if pos != nil {
 		p.pos = *pos
 	}
 	return *p
+}
+
+func (p *Player) clientUpdate(s *socket.Socket) {
+	data := []string{}
+	id := s.ClientID.String()
+	data = []string{
+		id,
+		"name",
+		fmt.Sprint(p.pos.X),
+		fmt.Sprint(p.pos.Y),
+		p.dir,
+		fmt.Sprint(p.moving),
+	}
+	message := strings.Join(data, ";")
+	s.O <- makeMessage([]byte(message))
+
+}
+
+func (p *Player) updateOnline(props []string) {
+	posX, _ := strconv.ParseFloat(props[2], 64)
+	posY, _ := strconv.ParseFloat(props[3], 64)
+	p.pos = pixel.V(posX, posY)
+	p.dir = props[4]
+	p.moving, _ = strconv.ParseBool(props[5])
 }
 
 func (p *Player) Update() *Player {
@@ -450,14 +394,6 @@ func (p *Player) getNextBodyFrame(dirFrames []int) pixel.Rect {
 	}
 	p.bodyStep = 0
 	return p.bodyFrames[dirFrames[0]]
-}
-
-func (p *Player) updateOnline(props []string) {
-	posX, _ := strconv.ParseFloat(props[2], 64)
-	posY, _ := strconv.ParseFloat(props[3], 64)
-	p.pos = pixel.V(posX, posY)
-	p.dir = props[4]
-	p.moving, _ = strconv.ParseBool(props[5])
 }
 
 type Forest struct {
@@ -540,7 +476,7 @@ func loadPictures(files ...string) map[string]pixel.Picture {
 	return contents
 }
 
-func keyInputs(win *pixelgl.Window, player *Player, camPos *pixel.Vec) {
+func keyInputs(win *pixelgl.Window, player *Player) {
 	last := time.Now()
 	const (
 		KeyUp    = pixelgl.KeyW
@@ -576,7 +512,7 @@ func keyInputs(win *pixelgl.Window, player *Player, camPos *pixel.Vec) {
 			if latestPressed(KeyLeft, timeMap) {
 				player.moving = true
 				player.dir = "left"
-				camPos.X -= camSpeed * dt
+				player.pos.X -= camSpeed * dt
 			}
 			timeMap[KeyLeft]++
 		} else {
@@ -587,7 +523,7 @@ func keyInputs(win *pixelgl.Window, player *Player, camPos *pixel.Vec) {
 			if latestPressed(KeyRight, timeMap) {
 				player.moving = true
 				player.dir = "right"
-				camPos.X += camSpeed * dt
+				player.pos.X += camSpeed * dt
 			}
 			timeMap[KeyRight]++
 		} else {
@@ -598,7 +534,7 @@ func keyInputs(win *pixelgl.Window, player *Player, camPos *pixel.Vec) {
 			if latestPressed(KeyDown, timeMap) {
 				player.moving = true
 				player.dir = "down"
-				camPos.Y -= camSpeed * dt
+				player.pos.Y -= camSpeed * dt
 			}
 			timeMap[KeyDown]++
 
@@ -610,13 +546,15 @@ func keyInputs(win *pixelgl.Window, player *Player, camPos *pixel.Vec) {
 			if latestPressed(KeyUp, timeMap) {
 				player.moving = true
 				player.dir = "up"
-				camPos.Y += camSpeed * dt
+				player.pos.Y += camSpeed * dt
 			}
 			timeMap[KeyUp]++
 		} else {
 			timeMap[KeyUp] = -1
 		}
 
-		player.pos = *camPos
+		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
+			player.moving = false
+		}
 	}
 }
