@@ -68,7 +68,6 @@ func (s *Socket) reciver() {
 				continue
 			}
 			s.I <- buffer.Bytes()
-			//log.Printf("Recived: %s", buffer.String())
 			buffer = bytes.Buffer{}
 		}
 
@@ -82,6 +81,7 @@ func (s *Socket) sender() {
 		select {
 
 		case message := <-s.O:
+
 			w.Write(message)
 			if err := w.Flush(); err != nil {
 				return
