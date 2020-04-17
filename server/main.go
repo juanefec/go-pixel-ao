@@ -37,8 +37,9 @@ func SocketServer(port int) {
 
 	log.Printf("Begin listen port: %d", port)
 
-	hub := newHub()
 	game := NewGame()
+	defer game.End()
+	go game.Run()
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
@@ -46,7 +47,7 @@ func SocketServer(port int) {
 			continue
 		}
 		log.Printf("Connected to: %v", conn.RemoteAddr().String())
-		go serveWs(&conn, hub, game)
+		go ServeGame(&conn, game)
 	}
 
 }
@@ -56,41 +57,18 @@ func isTransportOver(data string) (over bool) {
 	return
 }
 
-// serveWs handles websocket requests from the peer.
-func serveWs(conn *net.Conn, hub *Hub, game *Game) {
+// ServeGame handles websocket requests from the peer.
+func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
-	client := &Client{ID: id, hub: hub, conn: conn, send: make(chan []byte, 512)}
+	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 512), endupdate: make(chan struct{})}
+	client.game.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
-	go game.Run(client)
 	go client.writePump()
 	go client.readPump()
+	go game.ClientUpdater(client)
 
-	client.hub.register <- client
-}
-
-type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
-
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
-	// Register requests from the clients.
-	register chan *Client
-
-	// Unregister requests from clients.
-	unregister chan *Client
-}
-
-func newHub() *Hub {
-	return &Hub{
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
-	}
 }
 
 var (
@@ -100,19 +78,22 @@ var (
 type Client struct {
 	ID ksuid.KSUID
 
-	hub *Hub
+	game *Game
 
 	// The websocket connection.
 	conn *net.Conn
 
 	// Buffered channel of outbound messages.
 	send chan []byte
+
+	endupdate chan struct{}
 }
 
 func (c *Client) readPump() {
 	defer func() {
 		log.Printf("Disconnected: %v", (*c.conn).RemoteAddr().String())
-		c.hub.unregister <- c
+		log.Printf("Exited Client.readPump: %v", c.ID)
+		c.game.unregister <- c
 		(*c.conn).Close()
 	}()
 	var (
@@ -133,7 +114,7 @@ func (c *Client) readPump() {
 			continue
 		}
 
-		c.hub.broadcast <- data.Bytes()
+		c.game.broadcast <- data.Bytes()
 		data = bytes.Buffer{}
 
 	}
@@ -141,22 +122,21 @@ func (c *Client) readPump() {
 
 func (c *Client) writePump() {
 	defer func() {
+		log.Printf("Exited Client.writePump: %v", c.ID)
 		(*c.conn).Close()
 	}()
 	var w = bufio.NewWriter(*c.conn)
-	for {
 
-		for msg := range c.send {
-			msg = makeMessage(msg)
-			w.Write(msg)
-			if err := w.Flush(); err != nil {
-				log.Printf("Error: %v", err.Error())
-				return
-			}
-			//log.Printf("Send: %v|END", string(message))
+	for msg := range c.send {
+		msg = makeMessage(msg)
+		w.Write(msg)
+		if err := w.Flush(); err != nil {
+			log.Printf("Error: %v", err.Error())
+			return
 		}
-
+		//log.Printf("Send: %v|END", string(message))
 	}
+
 }
 
 func makeMessage(d []byte) []byte {
@@ -165,45 +145,75 @@ func makeMessage(d []byte) []byte {
 }
 
 type Game struct {
-	Online  int
-	Apocas  map[ksuid.KSUID]*models.ApocaMsg
-	Players map[ksuid.KSUID]*models.PlayerMsg
-	Pmutex  *sync.RWMutex
-	Amutex  *sync.RWMutex
+	Online     int
+	Spells     map[ksuid.KSUID]*models.SpellMsg
+	Players    map[ksuid.KSUID]*models.PlayerMsg
+	Pmutex     *sync.RWMutex
+	Amutex     *sync.RWMutex
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
+	unregister chan *Client
 }
 
 func NewGame() *Game {
 	return &Game{
-		Online:  0,
-		Apocas:  make(map[ksuid.KSUID]*models.ApocaMsg),
-		Players: make(map[ksuid.KSUID]*models.PlayerMsg),
-		Pmutex:  &sync.RWMutex{},
-		Amutex:  &sync.RWMutex{},
+		Online:     0,
+		Spells:     make(map[ksuid.KSUID]*models.SpellMsg),
+		Players:    make(map[ksuid.KSUID]*models.PlayerMsg),
+		Pmutex:     &sync.RWMutex{},
+		Amutex:     &sync.RWMutex{},
+		broadcast:  make(chan []byte),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		clients:    make(map[*Client]bool),
 	}
 }
 
-func (g *Game) Run(c *Client) {
-	updater := time.Tick(time.Second / 30)
+func (g *Game) End() {
+	close(g.broadcast)
+	close(g.register)
+	close(g.unregister)
+}
+
+func (g *Game) Run() {
+	logger := time.Tick(time.Second * 5)
 	for {
 		select {
-		case msg := <-c.hub.broadcast:
+		case msg := <-g.broadcast:
 			g.UpdateServer(msg)
-		case client := <-c.hub.register:
-			c.hub.clients[client] = true
+		case client := <-g.register:
+			g.clients[client] = true
 			client.send <- client.ID.Bytes()
-		case <-updater:
-			c.send <- g.UpdateClient(c)
-		case client := <-c.hub.unregister:
-			if _, ok := c.hub.clients[client]; ok {
+
+		case client := <-g.unregister:
+			if _, ok := g.clients[client]; ok {
+				client.endupdate <- struct{}{}
 				delete(g.Players, client.ID)
-				delete(c.hub.clients, client)
-				close(client.send)
-				return
+				delete(g.clients, client)
+
 			}
+		case <-logger:
+			log.Println("player list len: ", len(g.Players))
 		}
 
 	}
+}
+func (g *Game) ClientUpdater(c *Client) {
+	updater := time.Tick(time.Second / 22)
+ULOOP:
+	for {
+		select {
+		case <-c.endupdate:
+			break ULOOP
+		case <-updater:
+			c.send <- g.UpdateClient(c)
 
+		}
+
+	}
+	close(c.send)
+	log.Printf("Exited Game.ClientUpdater: %v", c.ID)
 }
 
 func (g *Game) UpdateServer(message []byte) {
@@ -218,7 +228,7 @@ func (g *Game) UpdateServer(message []byte) {
 		g.Players[msg.Player.ID] = &msg.Player
 		g.Pmutex.Unlock()
 		g.Amutex.Lock()
-		g.Apocas[msg.Player.ID] = &msg.Apoca
+		g.Spells[msg.Player.ID] = &msg.Spell
 		g.Amutex.Unlock()
 	} else {
 		log.Printf("err: %v", err.Error())
@@ -228,7 +238,7 @@ func (g *Game) UpdateServer(message []byte) {
 
 func (g *Game) UpdateClient(c *Client) []byte {
 	g.Amutex.RLock()
-	apocaSlice := getApocaList(g.Apocas)
+	SpellSlice := getSpellList(g.Spells)
 	g.Amutex.RUnlock()
 
 	g.Pmutex.RLock()
@@ -237,7 +247,7 @@ func (g *Game) UpdateClient(c *Client) []byte {
 
 	message := models.UpdateMessage{
 		Players: playerSlice,
-		Apocas:  apocaSlice,
+		Spells:  SpellSlice,
 	}
 	msg, err := json.Marshal(message)
 	if err != nil {
@@ -246,8 +256,8 @@ func (g *Game) UpdateClient(c *Client) []byte {
 	return msg
 }
 
-func getApocaList(m map[ksuid.KSUID]*models.ApocaMsg) []*models.ApocaMsg {
-	var res []*models.ApocaMsg
+func getSpellList(m map[ksuid.KSUID]*models.SpellMsg) []*models.SpellMsg {
+	var res []*models.SpellMsg
 	for _, v := range m {
 		res = append(res, v)
 	}

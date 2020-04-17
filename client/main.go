@@ -58,10 +58,12 @@ func run() {
 		"./images/bodies.png",
 		"./images/heads.png",
 		"./images/trees.png",
+		"./images/grass.png",
+		"./images/desca.png",
 	)
 
-	player := NewPlayer(nil)
-	apocaData := NewApocaData()
+	player := NewPlayer()
+	apocaData := NewSpellData("apoca", &player)
 	forest := NewForest()
 	otherPlayers := NewPlayersData()
 
@@ -91,6 +93,7 @@ func run() {
 		apocaData.Update(win, cam)
 		player.Update()
 		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
+		//forest.GrassBatch.Draw(win)
 		otherPlayers.Draw(win)
 		player.body.Draw(win, player.bodyMatrix)
 		player.head.Draw(win, player.headMatrix)
@@ -109,7 +112,6 @@ func run() {
 		}
 		win.Update()
 		player.clientUpdate(socket)
-
 	}
 }
 
@@ -117,26 +119,34 @@ func main() {
 	pixelgl.Run(run)
 }
 
-type ApocaData struct {
+type SpellData struct {
+	SpellName         string
+	Caster            *Player
 	Frames            []pixel.Rect
 	Pic               *pixel.Picture
 	Batch             *pixel.Batch
-	CurrentAnimations []*Apoca
+	CurrentAnimations []*Spell
 }
 
-func (ad *ApocaData) Update(win *pixelgl.Window, cam pixel.Matrix) {
+func (ad *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix) {
 	if win.JustPressed(pixelgl.MouseButtonLeft) {
 		mouse := cam.Unproject(win.MousePosition())
-		newApoca := &Apoca{
-			step:        ad.Frames[ApocaFrames[0]],
+		newSpell := &Spell{
+			spellName:   &ad.SpellName,
+			step:        ad.Frames[0],
 			frameNumber: 0.0,
 			matrix:      pixel.IM.Scaled(pixel.ZV, .7).Moved(mouse),
 			last:        time.Now(),
 		}
 
-		newApoca.frame = pixel.NewSprite(*(ad.Pic), newApoca.step)
-		ad.CurrentAnimations = append(ad.CurrentAnimations, newApoca)
-
+		newSpell.frame = pixel.NewSprite(*(ad.Pic), newSpell.step)
+		ad.CurrentAnimations = append(ad.CurrentAnimations, newSpell)
+		ad.Caster.playerUpdate.Spell = models.SpellMsg{
+			ID:   ad.Caster.playerUpdate.Player.ID,
+			Name: "name",
+			X:    mouse.X,
+			Y:    mouse.Y,
+		}
 	}
 
 	for i := 0; i <= len(ad.CurrentAnimations)-1; i++ {
@@ -155,20 +165,38 @@ func (ad *ApocaData) Update(win *pixelgl.Window, cam pixel.Matrix) {
 	}
 }
 
-func NewApocaData() *ApocaData {
+func NewSpellData(spell string, caster *Player) *SpellData {
 
-	apocaSheet := Pictures["./images/apocas.png"]
-	batch := pixel.NewBatch(&pixel.TrianglesData{}, apocaSheet)
-	apocaFrames := getFrames(apocaSheet, 145, 145, 4, 4)
-	return &ApocaData{
-		Frames:            apocaFrames,
-		Pic:               &apocaSheet,
+	var sheet pixel.Picture
+	var batch *pixel.Batch
+	var frames []pixel.Rect
+	switch spell {
+	case "apoca":
+		sheet = Pictures["./images/apocas.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		unorderedFrames := getFrames(sheet, 145, 145, 4, 4)
+		for i := range unorderedFrames {
+			frames = append(frames, unorderedFrames[ApocaFrames[i]])
+		}
+		break
+	case "desca":
+		sheet = Pictures["./images/desca.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 127, 127, 5, 3)
+	}
+
+	return &SpellData{
+		Caster:            caster,
+		SpellName:         spell,
+		Frames:            frames,
+		Pic:               &sheet,
 		Batch:             batch,
-		CurrentAnimations: make([]*Apoca, 0),
+		CurrentAnimations: make([]*Spell, 0),
 	}
 }
 
-type Apoca struct {
+type Spell struct {
+	spellName   *string
 	step        pixel.Rect
 	frame       *pixel.Sprite
 	frameNumber float64
@@ -176,16 +204,16 @@ type Apoca struct {
 	last        time.Time
 }
 
-func (a *Apoca) NextFrame(apocaFrames []pixel.Rect) (pixel.Rect, bool) {
+func (a *Spell) NextFrame(spellFrames []pixel.Rect) (pixel.Rect, bool) {
 	dt := time.Since(a.last).Seconds()
 	a.last = time.Now()
 	a.frameNumber += 21 * dt
 	i := int(a.frameNumber)
-	if i <= len(ApocaFrames)-1 {
-		return apocaFrames[ApocaFrames[i]], false
+	if i <= len(spellFrames)-1 {
+		return spellFrames[i], false
 	}
 	a.frameNumber = .0
-	return apocaFrames[ApocaFrames[0]], true
+	return spellFrames[0], true
 }
 
 type PlayersData struct {
@@ -226,25 +254,20 @@ func (pd *PlayersData) playersUpdate(s *socket.Socket) {
 				continue
 			}
 			for i := 0; i <= len(wupdate.Players)-1; i++ {
-				pd.AnimationsMutex.Lock()
 				p := wupdate.Players[i]
 				if p.ID != s.ClientID {
+					pd.AnimationsMutex.Lock()
 					player, ok := pd.CurrentAnimations[p.ID]
 					if !ok {
-						pos := pixel.V(p.X, p.Y)
-						np := NewPlayer(&pos)
-						np.bodyPic = pd.BodyPic
-						np.headPic = pd.HeadPic
-						np.bodyFrames = pd.BodyFrames
-						np.headFrames = pd.HeadFrames
+						np := NewPlayer()
 						pd.CurrentAnimations[p.ID] = &np
 						player, _ = pd.CurrentAnimations[p.ID]
 					}
+					pd.AnimationsMutex.Unlock()
 					player.pos = pixel.V(p.X, p.Y)
 					player.dir = p.Dir
 					player.moving = p.Moving
 				}
-				pd.AnimationsMutex.Unlock()
 			}
 
 		}
@@ -275,6 +298,7 @@ type Player struct {
 	head, body                         *pixel.Sprite
 	headMatrix, bodyMatrix, nameMatrix pixel.Matrix
 	bodyFrames, headFrames             []pixel.Rect
+	playerUpdate                       models.PlayerMessage
 	dir                                string
 	moving                             bool
 	bodyFrame                          pixel.Rect
@@ -283,7 +307,7 @@ type Player struct {
 	last                               time.Time
 }
 
-func NewPlayer(pos *pixel.Vec) Player {
+func NewPlayer() Player {
 	p := &Player{}
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	p.name = text.New(pixel.V(-28, 0), basicAtlas)
@@ -295,7 +319,7 @@ func NewPlayer(pos *pixel.Vec) Player {
 
 	headSheet := Pictures["./images/heads.png"]
 	headFrames := getFrames(headSheet, 16, 16, 4, 0)
-
+	p.playerUpdate = models.PlayerMessage{}
 	p.last = time.Now()
 	p.bodyFrames = bodyFrames
 	p.headFrames = headFrames
@@ -303,9 +327,6 @@ func NewPlayer(pos *pixel.Vec) Player {
 	p.headPic = &headSheet
 	p.dir = "down"
 	p.pos = pixel.ZV
-	if pos != nil {
-		p.pos = *pos
-	}
 	return *p
 }
 
@@ -318,13 +339,12 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 		Dir:    p.dir,
 		Moving: p.moving,
 	}
-	data := models.PlayerMessage{
-		Player: player,
-	}
-	msg, err := json.Marshal(data)
+	p.playerUpdate.Player = player
+	msg, err := json.Marshal(p.playerUpdate)
 	if err != nil {
 		return
 	}
+	p.playerUpdate = models.PlayerMessage{}
 	s.O <- makeMessage(msg)
 
 }
@@ -372,15 +392,17 @@ func (p *Player) getNextBodyFrame(dirFrames []int) pixel.Rect {
 }
 
 type Forest struct {
-	Pic    pixel.Picture
-	Frames []pixel.Rect
-	Batch  *pixel.Batch
+	Pic, GrassPic     pixel.Picture
+	Frames            []pixel.Rect
+	GrassFrame        pixel.Rect
+	Batch, GrassBatch *pixel.Batch
 }
 
 func NewForest() *Forest {
 	treeSheet := Pictures["./images/trees.png"]
 	treeBatch := pixel.NewBatch(&pixel.TrianglesData{}, treeSheet)
 	treeFrames := getFrames(treeSheet, 32, 32, 3, 3)
+
 	for i := 0; i <= TreeQuantity; i++ {
 		pos := pixel.ZV
 		dirX := rand.Float64()
@@ -398,9 +420,24 @@ func NewForest() *Forest {
 		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
 		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(pos))
 	}
+
+	// grassSheet := Pictures["./images/grass.png"]
+	// grassBatch := pixel.NewBatch(&pixel.TrianglesData{}, grassSheet)
+	// grassFrame := grassSheet.Bounds().Resized(grassSheet.Bounds().Center(), pixel.V(40, 40))
+	// grass := pixel.NewSprite(grassSheet, grassFrame)
+	// for x := 0; x <= 40; x++ {
+	// 	for y := 0; y <= 40; y++ {
+	// 		pos := pixel.V(float64(x)*40, float64(y)*40)
+	// 		log.Println(pos.String())
+	// 		grass.Draw(grassBatch, pixel.IM.Scaled(pixel.ZV, 1).Moved(pos))
+	// 	}
+	// }
 	return &Forest{
 		Pic:    treeSheet,
 		Frames: treeFrames,
 		Batch:  treeBatch,
+		// GrassPic:   grassSheet,
+		// GrassFrame: grassFrame,
+		// GrassBatch: grassBatch,
 	}
 }

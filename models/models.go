@@ -3,15 +3,15 @@ package models
 import "github.com/segmentio/ksuid"
 
 type PlayerMessage struct {
-	Apoca  ApocaMsg  `json:"apoca"`
+	Spell  SpellMsg  `json:"spell"`
 	Player PlayerMsg `json:"player"`
 }
 
 type UpdateMessage struct {
-	Apocas  []*ApocaMsg  `json:"apocas"`
+	Spells  []*SpellMsg  `json:"spells"`
 	Players []*PlayerMsg `json:"players"`
 }
-type ApocaMsg struct {
+type SpellMsg struct {
 	ID   ksuid.KSUID `json:"id"`
 	Name string      `json:"name"`
 	X    float64     `json:"x"`

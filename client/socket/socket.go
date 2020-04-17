@@ -14,13 +14,15 @@ import (
 
 // Socket stores the connection and the IO to comunicate wit the server
 type Socket struct {
+	Online   bool
 	ClientID ksuid.KSUID
 	conn     *net.Conn
 	I, O     chan []byte
 }
 
 // Close the connection and IO
-func (s Socket) Close() {
+func (s *Socket) Close() {
+	s.Online = false
 	(*s.conn).Close()
 }
 
@@ -34,9 +36,10 @@ func NewSocket(ip string, port int) *Socket {
 		os.Exit(1)
 	}
 	s := &Socket{
-		conn: &conn,
-		I:    make(chan []byte),
-		O:    make(chan []byte),
+		Online: true,
+		conn:   &conn,
+		I:      make(chan []byte),
+		O:      make(chan []byte),
 	}
 	reader := bufio.NewReader(conn)
 	for s.ClientID == ksuid.Nil {
@@ -57,8 +60,11 @@ func NewSocket(ip string, port int) *Socket {
 //message order [newApoca|id;name;x;y]
 
 func (s *Socket) reciver() {
+	defer s.Close()
+
 	var buffer bytes.Buffer
 	r := bufio.NewReader(*s.conn)
+
 	for {
 
 		data, isPrefix, err := r.ReadLine()
@@ -69,12 +75,16 @@ func (s *Socket) reciver() {
 			}
 			s.I <- buffer.Bytes()
 			buffer = bytes.Buffer{}
+		} else {
+			return
 		}
 
 	}
 }
 
 func (s *Socket) sender() {
+	defer s.Close()
+
 	var w = bufio.NewWriter(*s.conn)
 
 	for {
@@ -84,6 +94,7 @@ func (s *Socket) sender() {
 
 			w.Write(message)
 			if err := w.Flush(); err != nil {
+				s.Close()
 				return
 			}
 		default:
