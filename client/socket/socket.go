@@ -91,7 +91,7 @@ func (s *Socket) sender() {
 		select {
 
 		case message := <-s.O:
-
+			message = makeMessage(message)
 			w.Write(message)
 			if err := w.Flush(); err != nil {
 				s.Close()
@@ -100,4 +100,11 @@ func (s *Socket) sender() {
 		default:
 		}
 	}
+}
+
+var Newline = []byte{'\n'}
+
+func makeMessage(d []byte) []byte {
+	d = append(d, Newline...)
+	return d
 }

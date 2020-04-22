@@ -40,11 +40,6 @@ var (
 	Pictures map[string]pixel.Picture
 )
 
-func makeMessage(d []byte) []byte {
-	d = append(d, Newline...)
-	return d
-}
-
 const (
 	message       = "Ping"
 	StopCharacter = "\r\n\r\n"
@@ -81,7 +76,7 @@ func run() {
 	}
 
 	go keyInputs(win, &player)
-	go otherPlayers.playersUpdate(socket)
+	go GameUpdate(socket, &otherPlayers, apocaData)
 
 	for !win.Closed() {
 		apocaData.Batch.Clear()
@@ -90,7 +85,7 @@ func run() {
 		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
 
-		apocaData.Update(win, cam)
+		apocaData.Update(win, cam, socket)
 		player.Update()
 		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
 		//forest.GrassBatch.Draw(win)
@@ -128,7 +123,7 @@ type SpellData struct {
 	CurrentAnimations []*Spell
 }
 
-func (ad *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix) {
+func (ad *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket) {
 	if win.JustPressed(pixelgl.MouseButtonLeft) {
 		mouse := cam.Unproject(win.MousePosition())
 		newSpell := &Spell{
@@ -141,12 +136,15 @@ func (ad *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix) {
 
 		newSpell.frame = pixel.NewSprite(*(ad.Pic), newSpell.step)
 		ad.CurrentAnimations = append(ad.CurrentAnimations, newSpell)
-		ad.Caster.playerUpdate.Spell = models.SpellMsg{
-			ID:   ad.Caster.playerUpdate.Player.ID,
+		spell := models.SpellMsg{
+			ID:   s.ClientID,
 			Name: "name",
 			X:    mouse.X,
 			Y:    mouse.Y,
 		}
+		paylaod, _ := json.Marshal(spell)
+		s.O <- models.NewMesg(models.Spell, paylaod)
+
 	}
 
 	for i := 0; i <= len(ad.CurrentAnimations)-1; i++ {
@@ -244,30 +242,51 @@ func NewPlayersData() PlayersData {
 		AnimationsMutex:   &sync.RWMutex{},
 	}
 }
-func (pd *PlayersData) playersUpdate(s *socket.Socket) {
+func GameUpdate(s *socket.Socket, pd *PlayersData, sd *SpellData) {
 	for {
 		select {
 		case data := <-s.I:
-			var wupdate models.UpdateMessage
-			err := json.Unmarshal(data, &wupdate)
-			if err != nil {
-				continue
-			}
-			for i := 0; i <= len(wupdate.Players)-1; i++ {
-				p := wupdate.Players[i]
-				if p.ID != s.ClientID {
-					pd.AnimationsMutex.Lock()
-					player, ok := pd.CurrentAnimations[p.ID]
-					if !ok {
-						np := NewPlayer()
-						pd.CurrentAnimations[p.ID] = &np
-						player, _ = pd.CurrentAnimations[p.ID]
+			msg := models.UnmarshallMesg(data)
+			switch msg.Type {
+			case models.UpdateClient:
+
+				players := []*models.PlayerMsg{}
+				json.Unmarshal(msg.Payload, &players)
+
+				for i := 0; i <= len(players)-1; i++ {
+					p := players[i]
+					if p.ID != s.ClientID {
+						pd.AnimationsMutex.Lock()
+						player, ok := pd.CurrentAnimations[p.ID]
+						if !ok {
+							np := NewPlayer()
+							pd.CurrentAnimations[p.ID] = &np
+							player, _ = pd.CurrentAnimations[p.ID]
+						}
+						pd.AnimationsMutex.Unlock()
+						player.pos = pixel.V(p.X, p.Y)
+						player.dir = p.Dir
+						player.moving = p.Moving
 					}
-					pd.AnimationsMutex.Unlock()
-					player.pos = pixel.V(p.X, p.Y)
-					player.dir = p.Dir
-					player.moving = p.Moving
 				}
+				break
+			case models.Spell:
+
+				spell := models.SpellMsg{}
+				json.Unmarshal(msg.Payload, &spell)
+
+				pos := pixel.V(spell.X, spell.Y)
+				newSpell := &Spell{
+					spellName:   &sd.SpellName,
+					step:        sd.Frames[0],
+					frameNumber: 0.0,
+					matrix:      pixel.IM.Scaled(pixel.ZV, .7).Moved(pos),
+					last:        time.Now(),
+				}
+
+				newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+				sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+				break
 			}
 
 		}
@@ -277,15 +296,16 @@ func (pd *PlayersData) playersUpdate(s *socket.Socket) {
 func (pd *PlayersData) Draw(win *pixelgl.Window) {
 	pd.BodyBatch.Clear()
 	pd.HeadBatch.Clear()
-	pd.AnimationsMutex.Lock()
-	for key := range pd.CurrentAnimations {
-		player := pd.CurrentAnimations[key]
-		player.Update()
-		player.body.Draw(pd.BodyBatch, player.bodyMatrix)
-		player.head.Draw(pd.HeadBatch, player.headMatrix)
+	pd.AnimationsMutex.RLock()
+	for _, p := range pd.CurrentAnimations {
+		pd.AnimationsMutex.RUnlock()
+		p.Update()
+		p.body.Draw(pd.BodyBatch, p.bodyMatrix)
+		p.head.Draw(pd.HeadBatch, p.headMatrix)
+		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
-	pd.AnimationsMutex.Unlock()
+	pd.AnimationsMutex.RUnlock()
 
 	pd.BodyBatch.Draw(win)
 	pd.HeadBatch.Draw(win)
@@ -298,7 +318,7 @@ type Player struct {
 	head, body                         *pixel.Sprite
 	headMatrix, bodyMatrix, nameMatrix pixel.Matrix
 	bodyFrames, headFrames             []pixel.Rect
-	playerUpdate                       models.PlayerMessage
+	playerUpdate                       *models.PlayerMsg
 	dir                                string
 	moving                             bool
 	bodyFrame                          pixel.Rect
@@ -319,7 +339,7 @@ func NewPlayer() Player {
 
 	headSheet := Pictures["./images/heads.png"]
 	headFrames := getFrames(headSheet, 16, 16, 4, 0)
-	p.playerUpdate = models.PlayerMessage{}
+	p.playerUpdate = &models.PlayerMsg{}
 	p.last = time.Now()
 	p.bodyFrames = bodyFrames
 	p.headFrames = headFrames
@@ -331,7 +351,7 @@ func NewPlayer() Player {
 }
 
 func (p *Player) clientUpdate(s *socket.Socket) {
-	player := models.PlayerMsg{
+	p.playerUpdate = &models.PlayerMsg{
 		ID:     s.ClientID,
 		Name:   "name",
 		X:      p.pos.X,
@@ -339,13 +359,12 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 		Dir:    p.dir,
 		Moving: p.moving,
 	}
-	p.playerUpdate.Player = player
-	msg, err := json.Marshal(p.playerUpdate)
+	playerMsg, err := json.Marshal(p.playerUpdate)
 	if err != nil {
 		return
 	}
-	p.playerUpdate = models.PlayerMessage{}
-	s.O <- makeMessage(msg)
+	p.playerUpdate = &models.PlayerMsg{}
+	s.O <- models.NewMesg(models.UpdateServer, playerMsg)
 
 }
 
@@ -384,8 +403,6 @@ func (p *Player) getNextBodyFrame(dirFrames []int) pixel.Rect {
 		if (newFrame <= 5 && (p.dir == "up" || p.dir == "down")) || (newFrame <= 4 && (p.dir == "right" || p.dir == "left")) {
 			return p.bodyFrames[dirFrames[newFrame]]
 		}
-		p.bodyStep = 0
-		return p.bodyFrames[dirFrames[0]]
 	}
 	p.bodyStep = 0
 	return p.bodyFrames[dirFrames[0]]

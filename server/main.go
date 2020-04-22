@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -52,11 +51,6 @@ func SocketServer(port int) {
 
 }
 
-func isTransportOver(data string) (over bool) {
-	over = strings.HasSuffix(data, "\r\n\r\n")
-	return
-}
-
 // ServeGame handles websocket requests from the peer.
 func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
@@ -76,16 +70,10 @@ var (
 )
 
 type Client struct {
-	ID ksuid.KSUID
-
-	game *Game
-
-	// The websocket connection.
-	conn *net.Conn
-
-	// Buffered channel of outbound messages.
-	send chan []byte
-
+	ID        ksuid.KSUID
+	game      *Game
+	conn      *net.Conn
+	send      chan []byte
 	endupdate chan struct{}
 }
 
@@ -113,8 +101,18 @@ func (c *Client) readPump() {
 		if isPrefix {
 			continue
 		}
-
-		c.game.broadcast <- data.Bytes()
+		msg := models.UnmarshallMesg(data.Bytes())
+		switch msg.Type {
+		case models.Spell:
+			c.game.eventBroadcast <- struct {
+				*Client
+				json.RawMessage
+			}{c, msg.Payload}
+			break
+		case models.UpdateServer:
+			c.game.clientsUpdate <- msg.Payload
+			break
+		}
 		data = bytes.Buffer{}
 
 	}
@@ -145,42 +143,59 @@ func makeMessage(d []byte) []byte {
 }
 
 type Game struct {
-	Online     int
-	Spells     map[ksuid.KSUID]*models.SpellMsg
-	Players    map[ksuid.KSUID]*models.PlayerMsg
-	Pmutex     *sync.RWMutex
-	Amutex     *sync.RWMutex
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
+	Online         int
+	Players        map[ksuid.KSUID]*models.PlayerMsg
+	Pmutex         *sync.RWMutex
+	clientsUpdate  chan []byte
+	clients        map[*Client]bool
+	register       chan *Client
+	unregister     chan *Client
+	eventBroadcast chan struct {
+		*Client
+		json.RawMessage
+	}
 }
 
 func NewGame() *Game {
 	return &Game{
-		Online:     0,
-		Spells:     make(map[ksuid.KSUID]*models.SpellMsg),
-		Players:    make(map[ksuid.KSUID]*models.PlayerMsg),
-		Pmutex:     &sync.RWMutex{},
-		Amutex:     &sync.RWMutex{},
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
+		Online:        0,
+		Players:       make(map[ksuid.KSUID]*models.PlayerMsg),
+		clientsUpdate: make(chan []byte),
+		Pmutex:        &sync.RWMutex{},
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		clients:       make(map[*Client]bool),
+		eventBroadcast: make(chan struct {
+			*Client
+			json.RawMessage
+		}),
 	}
 }
 
 func (g *Game) End() {
-	close(g.broadcast)
+	close(g.clientsUpdate)
 	close(g.register)
 	close(g.unregister)
 }
 
 func (g *Game) Run() {
+	go func() {
+		for {
+			select {
+			case event := <-g.eventBroadcast:
+				for c := range g.clients {
+					if c.ID != event.Client.ID {
+						c.send <- models.NewMesg(models.Spell, event.RawMessage)
+					}
+				}
+			}
+		}
+	}()
 	logger := time.Tick(time.Second * 5)
+
 	for {
 		select {
-		case msg := <-g.broadcast:
+		case msg := <-g.clientsUpdate:
 			g.UpdateServer(msg)
 		case client := <-g.register:
 			g.clients[client] = true
@@ -191,7 +206,6 @@ func (g *Game) Run() {
 				client.endupdate <- struct{}{}
 				delete(g.Players, client.ID)
 				delete(g.clients, client)
-
 			}
 		case <-logger:
 			log.Println("player list len: ", len(g.Players))
@@ -217,19 +231,17 @@ ULOOP:
 }
 
 func (g *Game) UpdateServer(message []byte) {
-	var msg models.PlayerMessage
+	var msg models.PlayerMsg
 	err := json.Unmarshal(message, &msg)
 	if err == nil {
 
 		g.Pmutex.Lock()
-		if _, ok := g.Players[msg.Player.ID]; !ok {
+		if _, ok := g.Players[msg.ID]; !ok {
 			g.Online++
 		}
-		g.Players[msg.Player.ID] = &msg.Player
+		g.Players[msg.ID] = &msg
 		g.Pmutex.Unlock()
-		g.Amutex.Lock()
-		g.Spells[msg.Player.ID] = &msg.Spell
-		g.Amutex.Unlock()
+
 	} else {
 		log.Printf("err: %v", err.Error())
 
@@ -237,22 +249,13 @@ func (g *Game) UpdateServer(message []byte) {
 }
 
 func (g *Game) UpdateClient(c *Client) []byte {
-	g.Amutex.RLock()
-	SpellSlice := getSpellList(g.Spells)
-	g.Amutex.RUnlock()
 
 	g.Pmutex.RLock()
 	playerSlice := getPlayerList(g.Players)
 	g.Pmutex.RUnlock()
 
-	message := models.UpdateMessage{
-		Players: playerSlice,
-		Spells:  SpellSlice,
-	}
-	msg, err := json.Marshal(message)
-	if err != nil {
-		return []byte{}
-	}
+	playersMsg, _ := json.Marshal(playerSlice)
+	msg := models.NewMesg(models.UpdateClient, playersMsg)
 	return msg
 }
 
