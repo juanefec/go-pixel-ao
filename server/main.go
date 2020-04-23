@@ -3,16 +3,16 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"log"
 	"net"
 	"os"
 	"strconv"
-	"strings"
+	"sync"
 	"time"
 
+	"github.com/juanefec/go-pixel-ao/models"
 	"github.com/segmentio/ksuid"
-
-	"github.com/gorilla/websocket"
 )
 
 func main() {
@@ -36,132 +36,52 @@ func SocketServer(port int) {
 
 	log.Printf("Begin listen port: %d", port)
 
-	hub := newHub()
-	go hub.run()
-
+	game := NewGame()
+	defer game.End()
+	go game.Run()
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
 			log.Fatalln(err)
 			continue
 		}
-		go serveWs(&conn, hub)
+		log.Printf("Connected to: %v", conn.RemoteAddr().String())
+		go ServeGame(&conn, game)
 	}
 
 }
 
-func isTransportOver(data string) (over bool) {
-	over = strings.HasSuffix(data, "\r\n\r\n")
-	return
-}
-
-// serveWs handles websocket requests from the peer.
-func serveWs(conn *net.Conn, hub *Hub) {
+// ServeGame handles websocket requests from the peer.
+func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
-	client := &Client{ID: id, hub: hub, conn: conn, send: make(chan []byte, 256)}
-	client.hub.register <- client
+	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 512), endupdate: make(chan struct{})}
+	client.game.register <- client
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
+	go game.ClientUpdater(client)
+
 }
-
-type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
-
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
-	// Register requests from the clients.
-	register chan *Client
-
-	// Unregister requests from clients.
-	unregister chan *Client
-}
-
-func newHub() *Hub {
-	return &Hub{
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
-	}
-}
-
-func (h *Hub) run() {
-	for {
-		select {
-		case client := <-h.register:
-			h.clients[client] = true
-			client.send <- client.ID.Bytes()
-		case client := <-h.unregister:
-			if _, ok := h.clients[client]; ok {
-				delete(h.clients, client)
-				close(client.send)
-			}
-		case message := <-h.broadcast:
-			for client := range h.clients {
-				id := (strings.Split(string(message), ";"))[0][0:]
-				if client.ID.String() != id && len(id) == 27 {
-					select {
-					case client.send <- message:
-					default:
-						close(client.send)
-						delete(h.clients, client)
-					}
-				}
-			}
-		}
-	}
-}
-
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
-)
 
 var (
 	Newline = []byte{'\n'}
-	space   = []byte{' '}
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
-// Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	ID ksuid.KSUID
-
-	hub *Hub
-
-	// The websocket connection.
-	conn *net.Conn
-
-	// Buffered channel of outbound messages.
-	send chan []byte
+	ID        ksuid.KSUID
+	game      *Game
+	conn      *net.Conn
+	send      chan []byte
+	endupdate chan struct{}
 }
 
-// readPump pumps messages from the websocket connection to the hub.
-//
-// The application runs readPump in a per-connection goroutine. The application
-// ensures that there is at most one reader on a connection by executing all
-// reads from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
+		log.Printf("Disconnected: %v", (*c.conn).RemoteAddr().String())
+		log.Printf("Exited Client.readPump: %v", c.ID)
+		c.game.unregister <- c
 		(*c.conn).Close()
 	}()
 	var (
@@ -171,49 +91,181 @@ func (c *Client) readPump() {
 
 	for {
 		dataRead, isPrefix, err := r.ReadLine()
-		if err == nil {
-			data.Write(dataRead)
-
-			if isPrefix {
-				continue
-			}
-
-			if len(bytes.Split(data.Bytes(), []byte(";"))) == 6 {
-				//log.Printf("Receive: %v\n", string(data.Bytes()))
-				c.hub.broadcast <- data.Bytes()
-				data = bytes.Buffer{}
-			}
+		if err != nil {
+			log.Printf("Error: %v", err.Error())
+			break
 
 		}
+
+		data.Write(dataRead)
+		if isPrefix {
+			continue
+		}
+		msg := models.UnmarshallMesg(data.Bytes())
+		switch msg.Type {
+		case models.Spell:
+			c.game.eventBroadcast <- struct {
+				*Client
+				json.RawMessage
+			}{c, msg.Payload}
+			break
+		case models.UpdateServer:
+			c.game.clientsUpdate <- msg.Payload
+			break
+		}
+		data = bytes.Buffer{}
+
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
 func (c *Client) writePump() {
-	ticker := time.NewTicker(pingPeriod)
 	defer func() {
-		ticker.Stop()
+		log.Printf("Exited Client.writePump: %v", c.ID)
 		(*c.conn).Close()
 	}()
 	var w = bufio.NewWriter(*c.conn)
-	for {
-		for message := range c.send {
-			message = makeMessage(message)
-			w.Write(message)
-			if err := w.Flush(); err != nil {
-				println(err.Error())
-				return
-			}
-			//log.Printf("Send: %v|END", string(message))
+
+	for msg := range c.send {
+		msg = makeMessage(msg)
+		w.Write(msg)
+		if err := w.Flush(); err != nil {
+			log.Printf("Error: %v", err.Error())
+			return
 		}
+		//log.Printf("Send: %v|END", string(message))
 	}
+
 }
 
 func makeMessage(d []byte) []byte {
 	d = append(d, Newline...)
 	return d
+}
+
+type Game struct {
+	Online         int
+	Players        map[ksuid.KSUID]*models.PlayerMsg
+	Pmutex         *sync.RWMutex
+	clientsUpdate  chan []byte
+	clients        map[*Client]bool
+	register       chan *Client
+	unregister     chan *Client
+	eventBroadcast chan struct {
+		*Client
+		json.RawMessage
+	}
+}
+
+func NewGame() *Game {
+	return &Game{
+		Online:        0,
+		Players:       make(map[ksuid.KSUID]*models.PlayerMsg),
+		clientsUpdate: make(chan []byte),
+		Pmutex:        &sync.RWMutex{},
+		register:      make(chan *Client),
+		unregister:    make(chan *Client),
+		clients:       make(map[*Client]bool),
+		eventBroadcast: make(chan struct {
+			*Client
+			json.RawMessage
+		}),
+	}
+}
+
+func (g *Game) End() {
+	close(g.clientsUpdate)
+	close(g.register)
+	close(g.unregister)
+}
+
+func (g *Game) Run() {
+	go func() {
+		for {
+			select {
+			case event := <-g.eventBroadcast:
+				for c := range g.clients {
+					if c.ID != event.Client.ID {
+						c.send <- models.NewMesg(models.Spell, event.RawMessage)
+					}
+				}
+			}
+		}
+	}()
+
+	logger := time.Tick(time.Second * 5)
+	for {
+		select {
+		case msg := <-g.clientsUpdate:
+			g.UpdateServer(msg)
+
+		case client := <-g.register:
+			g.clients[client] = true
+			client.send <- client.ID.Bytes()
+
+		case client := <-g.unregister:
+			if _, ok := g.clients[client]; ok {
+				client.endupdate <- struct{}{}
+				delete(g.Players, client.ID)
+				delete(g.clients, client)
+			}
+
+		case <-logger:
+			log.Println("player list len: ", len(g.Players))
+		}
+
+	}
+}
+
+func (g *Game) ClientUpdater(c *Client) {
+	updater := time.Tick(time.Second / 22)
+ULOOP:
+	for {
+		select {
+		case <-c.endupdate:
+			break ULOOP
+		case <-updater:
+			c.send <- g.UpdateClient(c)
+
+		}
+
+	}
+	close(c.send)
+	log.Printf("Exited Game.ClientUpdater: %v", c.ID)
+}
+
+func (g *Game) UpdateServer(message []byte) {
+	var msg models.PlayerMsg
+	err := json.Unmarshal(message, &msg)
+	if err == nil {
+
+		g.Pmutex.Lock()
+		if _, ok := g.Players[msg.ID]; !ok {
+			g.Online++
+		}
+		g.Players[msg.ID] = &msg
+		g.Pmutex.Unlock()
+
+	} else {
+		log.Printf("err: %v", err.Error())
+
+	}
+}
+
+func (g *Game) UpdateClient(c *Client) []byte {
+
+	g.Pmutex.RLock()
+	playerSlice := getPlayerList(g.Players)
+	g.Pmutex.RUnlock()
+
+	playersMsg, _ := json.Marshal(playerSlice)
+	msg := models.NewMesg(models.UpdateClient, playersMsg)
+	return msg
+}
+
+func getPlayerList(m map[ksuid.KSUID]*models.PlayerMsg) []*models.PlayerMsg {
+	var res []*models.PlayerMsg
+	for _, v := range m {
+		res = append(res, v)
+	}
+	return res
 }
