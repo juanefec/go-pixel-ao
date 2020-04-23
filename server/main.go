@@ -191,12 +191,13 @@ func (g *Game) Run() {
 			}
 		}
 	}()
-	logger := time.Tick(time.Second * 5)
 
+	logger := time.Tick(time.Second * 5)
 	for {
 		select {
 		case msg := <-g.clientsUpdate:
 			g.UpdateServer(msg)
+
 		case client := <-g.register:
 			g.clients[client] = true
 			client.send <- client.ID.Bytes()
@@ -207,12 +208,14 @@ func (g *Game) Run() {
 				delete(g.Players, client.ID)
 				delete(g.clients, client)
 			}
+
 		case <-logger:
 			log.Println("player list len: ", len(g.Players))
 		}
 
 	}
 }
+
 func (g *Game) ClientUpdater(c *Client) {
 	updater := time.Tick(time.Second / 22)
 ULOOP:
@@ -259,13 +262,6 @@ func (g *Game) UpdateClient(c *Client) []byte {
 	return msg
 }
 
-func getSpellList(m map[ksuid.KSUID]*models.SpellMsg) []*models.SpellMsg {
-	var res []*models.SpellMsg
-	for _, v := range m {
-		res = append(res, v)
-	}
-	return res
-}
 func getPlayerList(m map[ksuid.KSUID]*models.PlayerMsg) []*models.PlayerMsg {
 	var res []*models.PlayerMsg
 	for _, v := range m {
