@@ -17,10 +17,11 @@ const (
 	UpdateClient Event = iota
 	UpdateServer
 	Spell
+	Disconect
 )
 
 func (d Event) String() string {
-	return [...]string{"UpdateClient", "UpdateServer", "Spell"}[d]
+	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Disconect"}[d]
 }
 
 type Mesg struct {
@@ -45,11 +46,16 @@ func UnmarshallMesg(m []byte) *Mesg {
 	return r
 }
 
+type DisconectMsg struct {
+	ID ksuid.KSUID `json:"id"`
+}
+
 type SpellMsg struct {
-	ID   ksuid.KSUID `json:"id"`
-	Name string      `json:"name"`
-	X    float64     `json:"x"`
-	Y    float64     `json:"y"`
+	ID       ksuid.KSUID `json:"id"`
+	TargetID ksuid.KSUID `json:"target_id"`
+	Name     string      `json:"name"`
+	X        float64     `json:"x"`
+	Y        float64     `json:"y"`
 }
 
 type PlayerMsg struct {

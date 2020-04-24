@@ -83,6 +83,18 @@ func keyInputs(win *pixelgl.Window, player *Player) {
 			timeMap[KeyUp] = -1
 		}
 
+		if win.Pressed(pixelgl.KeyF) {
+			player.drinkingManaPotions = true
+		} else {
+			player.drinkingManaPotions = false
+		}
+
+		if win.Pressed(pixelgl.MouseButtonRight) {
+			player.drinkingHealthPotions = true
+		} else {
+			player.drinkingHealthPotions = false
+		}
+
 		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
 			player.moving = false
 		}
