@@ -65,4 +65,5 @@ type PlayerMsg struct {
 	Y      float64     `json:"y"`
 	Dir    string      `json:"dir"`
 	Moving bool        `json:"moving"`
+	Dead   bool        `json:"dead"`
 }
