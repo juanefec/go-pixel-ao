@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -100,15 +99,14 @@ func run() {
 		apocaData.Batch.Clear()
 		descaData.Batch.Clear()
 
-		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
+		cam := pixel.IM.Moved(win.Bounds().Center().Sub(player.pos))
 		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
 
 		apocaData.Update(win, cam, socket, &otherPlayers, cursor)
 		descaData.Update(win, cam, socket, &otherPlayers, cursor)
 		player.Update()
-		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
-		//forest.GrassBatch.Draw(win)
+
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
 		player.body.Draw(win, player.bodyMatrix)
@@ -606,7 +604,7 @@ func NewPlayer(name string) Player {
 	p.deadPic = &deadSheet
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
-	p.pos = pixel.ZV
+	p.pos = pixel.V(600, 600)
 	p.mp = MaxMana
 	p.hp = MaxHealth
 	return *p
