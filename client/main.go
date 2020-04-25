@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"sync"
@@ -67,8 +68,11 @@ func run() {
 		"./images/curaBody.png",
 		"./images/curaHead.png",
 	)
-
-	player := NewPlayer()
+	name, err := SetNameWindow()
+	if err != nil {
+		log.Panic(err)
+	}
+	player := NewPlayer(name)
 	apocaData := NewSpellData("apoca", &player)
 	descaData := NewSpellData("desca", &player)
 	forest := NewForest()
@@ -463,7 +467,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						player, ok := pd.CurrentAnimations[p.ID]
 						if !ok {
 							pd.Online++
-							np := NewPlayer()
+							np := NewPlayer(p.Name)
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
 						}
@@ -540,7 +544,7 @@ func (pd *PlayersData) Draw(win *pixelgl.Window) {
 			p.body.Draw(pd.DeadBatch, p.bodyMatrix)
 			p.head.Draw(pd.DeadHeadBatch, p.headMatrix)
 		}
-
+		p.name.Draw(win, p.nameMatrix)
 		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
@@ -555,6 +559,7 @@ type Player struct {
 	pos                                                pixel.Vec
 	headPic, bodyPic, deadPic, deadHeadPic             *pixel.Picture
 	name                                               *text.Text
+	sname                                              string
 	head, body                                         *pixel.Sprite
 	headMatrix, bodyMatrix, nameMatrix                 pixel.Matrix
 	bodyFrames, headFrames, deadFrames, deadHeadFrames []pixel.Rect
@@ -573,12 +578,13 @@ type Player struct {
 	dead                                               bool
 }
 
-func NewPlayer() Player {
+func NewPlayer(name string) Player {
 	p := &Player{}
+	p.sname = name
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	p.name = text.New(pixel.V(-28, 0), basicAtlas)
 	p.name.Color = colornames.Blue
-	fmt.Fprintln(p.name, "creative")
+	fmt.Fprintln(p.name, name)
 
 	bodySheet := Pictures["./images/bodies.png"]
 	bodyFrames := getFrames(bodySheet, 19, 38, 6, 4)
@@ -619,7 +625,7 @@ func (p *Player) OnMe(click pixel.Vec) bool {
 func (p *Player) clientUpdate(s *socket.Socket) {
 	p.playerUpdate = &models.PlayerMsg{
 		ID:     s.ClientID,
-		Name:   "name",
+		Name:   p.sname,
 		X:      p.pos.X,
 		Y:      p.pos.Y,
 		Dir:    p.dir,
