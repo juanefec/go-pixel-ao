@@ -21,7 +21,7 @@ func SetNameWindow() (string, error) {
 	if err != nil {
 		panic(err)
 	}
-	defer win.SetClosed(true)
+	defer win.Destroy()
 
 	atlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	nickname := text.New(pixel.V(50, 100), atlas)
@@ -42,7 +42,6 @@ func SetNameWindow() (string, error) {
 			nn = fmt.Sprint(nn, win.Typed())
 		}
 		if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
-			win.SetClosed(true)
 			return nn, nil
 		}
 
