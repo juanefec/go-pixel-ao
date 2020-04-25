@@ -6,7 +6,7 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
-func keyInputs(win *pixelgl.Window, player *Player) {
+func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	last := time.Now()
 	const (
 		KeyUp    = pixelgl.KeyW
@@ -81,6 +81,26 @@ func keyInputs(win *pixelgl.Window, player *Player) {
 			timeMap[KeyUp]++
 		} else {
 			timeMap[KeyUp] = -1
+		}
+
+		if win.Pressed(pixelgl.KeyF) {
+			player.drinkingManaPotions = true
+		} else {
+			player.drinkingManaPotions = false
+		}
+
+		if win.Pressed(pixelgl.MouseButtonRight) {
+			player.drinkingHealthPotions = true
+		} else {
+			player.drinkingHealthPotions = false
+		}
+
+		if win.JustPressed(pixelgl.Key2) {
+			cursor.SetSpellApocaMode()
+		}
+
+		if win.JustPressed(pixelgl.Key3) {
+			cursor.SetSpellDescaMode()
 		}
 
 		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {

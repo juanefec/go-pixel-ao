@@ -104,10 +104,10 @@ func (c *Client) readPump() {
 		msg := models.UnmarshallMesg(data.Bytes())
 		switch msg.Type {
 		case models.Spell:
-			c.game.eventBroadcast <- struct {
-				*Client
-				json.RawMessage
-			}{c, msg.Payload}
+			c.game.eventBroadcast <- BroadcastEvent{
+				Client:  c,
+				Event:   models.Spell,
+				Payload: msg.Payload}
 			break
 		case models.UpdateServer:
 			c.game.clientsUpdate <- msg.Payload
@@ -142,6 +142,12 @@ func makeMessage(d []byte) []byte {
 	return d
 }
 
+type BroadcastEvent struct {
+	Client  *Client
+	Event   models.Event
+	Payload json.RawMessage
+}
+
 type Game struct {
 	Online         int
 	Players        map[ksuid.KSUID]*models.PlayerMsg
@@ -150,25 +156,19 @@ type Game struct {
 	clients        map[*Client]bool
 	register       chan *Client
 	unregister     chan *Client
-	eventBroadcast chan struct {
-		*Client
-		json.RawMessage
-	}
+	eventBroadcast chan BroadcastEvent
 }
 
 func NewGame() *Game {
 	return &Game{
-		Online:        0,
-		Players:       make(map[ksuid.KSUID]*models.PlayerMsg),
-		clientsUpdate: make(chan []byte),
-		Pmutex:        &sync.RWMutex{},
-		register:      make(chan *Client),
-		unregister:    make(chan *Client),
-		clients:       make(map[*Client]bool),
-		eventBroadcast: make(chan struct {
-			*Client
-			json.RawMessage
-		}),
+		Online:         0,
+		Players:        make(map[ksuid.KSUID]*models.PlayerMsg),
+		clientsUpdate:  make(chan []byte),
+		Pmutex:         &sync.RWMutex{},
+		register:       make(chan *Client),
+		unregister:     make(chan *Client),
+		clients:        make(map[*Client]bool),
+		eventBroadcast: make(chan BroadcastEvent),
 	}
 }
 
@@ -185,8 +185,11 @@ func (g *Game) Run() {
 			case event := <-g.eventBroadcast:
 				for c := range g.clients {
 					if c.ID != event.Client.ID {
-						c.send <- models.NewMesg(models.Spell, event.RawMessage)
+						c.send <- models.NewMesg(event.Event, event.Payload)
 					}
+				}
+				if event.Event == models.Disconect {
+					delete(g.clients, event.Client)
 				}
 			}
 		}
@@ -204,9 +207,15 @@ func (g *Game) Run() {
 
 		case client := <-g.unregister:
 			if _, ok := g.clients[client]; ok {
+				p := models.DisconectMsg{ID: client.ID}
+				payload, _ := json.Marshal(p)
+				g.eventBroadcast <- BroadcastEvent{
+					Client:  client,
+					Event:   models.Disconect,
+					Payload: payload,
+				}
 				client.endupdate <- struct{}{}
 				delete(g.Players, client.ID)
-				delete(g.clients, client)
 			}
 
 		case <-logger:
