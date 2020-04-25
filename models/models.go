@@ -52,6 +52,7 @@ type DisconectMsg struct {
 
 type SpellMsg struct {
 	ID       ksuid.KSUID `json:"id"`
+	Type     string      `json:"type"`
 	TargetID ksuid.KSUID `json:"target_id"`
 	Name     string      `json:"name"`
 	X        float64     `json:"x"`
