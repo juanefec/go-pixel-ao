@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -85,7 +84,7 @@ func run() {
 
 	cfg := pixelgl.WindowConfig{
 		Title:  "Creative AO",
-		Bounds: pixel.R(0, 0, 600, 600),
+		Bounds: pixel.R(0, 0, 850, 650),
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -100,15 +99,14 @@ func run() {
 		apocaData.Batch.Clear()
 		descaData.Batch.Clear()
 
-		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
+		cam := pixel.IM.Moved(win.Bounds().Center().Sub(player.pos))
 		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
 
 		apocaData.Update(win, cam, socket, &otherPlayers, cursor)
 		descaData.Update(win, cam, socket, &otherPlayers, cursor)
 		player.Update()
-		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
-		//forest.GrassBatch.Draw(win)
+
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
 		player.body.Draw(win, player.bodyMatrix)
@@ -214,41 +212,43 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 }
 
 func (pi *PlayerInfo) DrawPlayerInfo(win *pixelgl.Window) {
+	winSize := win.Bounds().Max
+	infoPos := pi.player.pos.Add(pixel.V((winSize.X-330)/2, (winSize.Y-15)/2))
 	info := imdraw.New(nil)
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape
 	info.Push(
-		pi.player.pos.Add(pixel.V(138, 292)),
-		pi.player.pos.Add(pixel.V(292, 292)),
-		pi.player.pos.Add(pixel.V(292, 268)),
-		pi.player.pos.Add(pixel.V(138, 268)),
-		pi.player.pos.Add(pixel.V(138, 292)),
+		infoPos.Add(pixel.V(-2, 2)),
+		infoPos.Add(pixel.V(152, 2)),
+		infoPos.Add(pixel.V(152, -22)),
+		infoPos.Add(pixel.V(-2, -22)),
+		infoPos.Add(pixel.V(-2, 2)),
 	)
 	info.Line(4)
 	info.Push(
-		pi.player.pos.Add(pixel.V(138, 252)),
-		pi.player.pos.Add(pixel.V(292, 252)),
-		pi.player.pos.Add(pixel.V(292, 228)),
-		pi.player.pos.Add(pixel.V(138, 228)),
-		pi.player.pos.Add(pixel.V(138, 252)),
+		infoPos.Add(pixel.V(-2, -28)),
+		infoPos.Add(pixel.V(152, -28)),
+		infoPos.Add(pixel.V(152, -52)),
+		infoPos.Add(pixel.V(-2, -52)),
+		infoPos.Add(pixel.V(-2, -28)),
 	)
 	info.Line(4)
 	info.Color = pixel.RGB(1, 0, 0).Mul(pixel.Alpha(20))
-	hval := Map(float64(pi.player.hp), 0, 366, 140, 290)
+	hval := Map(float64(pi.player.hp), 0, 366, 0, 150)
 	info.Push(
-		pi.player.pos.Add(pixel.V(140, 290)),
-		pi.player.pos.Add(pixel.V(hval, 290)),
-		pi.player.pos.Add(pixel.V(140, 270)),
-		pi.player.pos.Add(pixel.V(hval, 270)),
+		infoPos.Add(pixel.V(0, 0)),
+		infoPos.Add(pixel.V(hval, 0)),
+		infoPos.Add(pixel.V(0, -20)),
+		infoPos.Add(pixel.V(hval, -20)),
 	)
 	info.Rectangle(0)
 	info.Color = pixel.RGB(0, 0, 1).Mul(pixel.Alpha(20))
-	mval := Map(float64(pi.player.mp), 0, 3444, 140, 290)
+	mval := Map(float64(pi.player.mp), 0, 3444, 0, 150)
 	info.Push(
-		pi.player.pos.Add(pixel.V(140, 250)),
-		pi.player.pos.Add(pixel.V(mval, 250)),
-		pi.player.pos.Add(pixel.V(140, 230)),
-		pi.player.pos.Add(pixel.V(mval, 230)),
+		infoPos.Add(pixel.V(0, -30)),
+		infoPos.Add(pixel.V(mval, -30)),
+		infoPos.Add(pixel.V(0, -50)),
+		infoPos.Add(pixel.V(mval, -50)),
 	)
 	info.Rectangle(0)
 	info.Draw(win)
@@ -258,9 +258,9 @@ func (pi *PlayerInfo) DrawPlayerInfo(win *pixelgl.Window) {
 	fmt.Fprintf(pi.hdisplay, "%v/%v", pi.player.hp, MaxHealth)
 	fmt.Fprintf(pi.mdisplay, "%v/%v", pi.player.mp, MaxMana)
 	fmt.Fprintf(pi.onsdisplay, "Online: %v", pi.playersData.Online+1)
-	hmatrix := pixel.IM.Moved(pi.player.bodyMatrix.Project(pixel.V(195, 276)))
-	mmatrix := pixel.IM.Moved(pi.player.bodyMatrix.Project(pixel.V(195, 236)))
-	onsmatrix := pixel.IM.Moved(pi.player.bodyMatrix.Project(pixel.V(-290, 282)))
+	hmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(46, -15)))
+	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
+	onsmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-winSize.X+200, -10)))
 	pi.hdisplay.Draw(win, hmatrix)
 	pi.mdisplay.Draw(win, mmatrix)
 	pi.onsdisplay.Draw(win, onsmatrix)
@@ -606,7 +606,7 @@ func NewPlayer(name string) Player {
 	p.deadPic = &deadSheet
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
-	p.pos = pixel.ZV
+	p.pos = pixel.V(600, 600)
 	p.mp = MaxMana
 	p.hp = MaxHealth
 	return *p
