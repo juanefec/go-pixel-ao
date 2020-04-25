@@ -289,7 +289,9 @@ type SpellData struct {
 }
 
 func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
-	if win.JustPressed(pixelgl.MouseButtonLeft) && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode {
+	dt := time.Since(sd.Caster.lastCast).Seconds()
+	if win.JustPressed(pixelgl.MouseButtonLeft) && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && dt >= ((time.Second.Seconds()/3)*2) {
+		sd.Caster.lastCast = time.Now()
 		for key, _ := range pd.CurrentAnimations {
 			mouse := cam.Unproject(win.MousePosition())
 			if pd.CurrentAnimations[key].OnMe(mouse) && !pd.CurrentAnimations[key].dead {
@@ -454,13 +456,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 
 				players := []*models.PlayerMsg{}
 				json.Unmarshal(msg.Payload, &players)
-				//newPlayerMap := map[ksuid.KSUID]*Player{}
 				for i := 0; i <= len(players)-1; i++ {
-					// newPlayer := NewPlayer()
-					// newPlayerMap[players[i].ID] = &newPlayer
-					// newPlayer.pos = pixel.V(players[i].X, players[i].Y)
-					// newPlayer.dir = players[i].Dir
-					// newPlayer.moving = players[i].Moving
 					p := players[i]
 					if p.ID != s.ClientID {
 						pd.AnimationsMutex.Lock()
@@ -478,9 +474,6 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						player.dead = p.Dead
 					}
 				}
-				// pd.AnimationsMutex.Lock()
-				// pd.CurrentAnimations = newPlayerMap
-				// pd.AnimationsMutex.Unlock()
 				break
 			case models.Spell:
 
@@ -572,6 +565,7 @@ type Player struct {
 	lastDeadFrame                                      time.Time
 	lastBodyFrame                                      time.Time
 	lastDrank                                          time.Time
+	lastCast                                           time.Time
 	hp, mp                                             int // health/mana points
 	drinkingManaPotions                                bool
 	drinkingHealthPotions                              bool
@@ -602,6 +596,7 @@ func NewPlayer(name string) Player {
 	p.lastBodyFrame = time.Now()
 	p.lastDeadFrame = time.Now()
 	p.lastDrank = time.Now()
+	p.lastCast = time.Now()
 	p.bodyFrames = bodyFrames
 	p.headFrames = headFrames
 	p.bodyPic = &bodySheet
