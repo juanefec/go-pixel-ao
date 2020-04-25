@@ -41,6 +41,13 @@ func SetNameWindow() (string, error) {
 		if win.Typed() != "" {
 			nn = fmt.Sprint(nn, win.Typed())
 		}
+		if win.JustPressed(pixelgl.KeyBackspace) || win.Repeated(pixelgl.KeyBackspace) {
+			if nn != "" {
+				nn = nn[:len(nn)-1]
+				nickname.Clear()
+				nickname.WriteString(nn)
+			}
+		}
 		if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
 			return nn, nil
 		}

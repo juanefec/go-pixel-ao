@@ -226,7 +226,7 @@ func (g *Game) Run() {
 }
 
 func (g *Game) ClientUpdater(c *Client) {
-	updater := time.Tick(time.Second / 22)
+	updater := time.Tick(time.Second / 30)
 ULOOP:
 	for {
 		select {

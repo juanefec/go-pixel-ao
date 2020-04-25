@@ -260,7 +260,8 @@ func (pi *PlayerInfo) DrawPlayerInfo(win *pixelgl.Window) {
 	fmt.Fprintf(pi.onsdisplay, "Online: %v", pi.playersData.Online+1)
 	hmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(46, -15)))
 	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
-	onsmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-winSize.X+200, -10)))
+	onspos := infoPos.Add(pixel.V(-winSize.X+190, -20))
+	onsmatrix := pixel.IM.Moved(onspos).Scaled(onspos, 2)
 	pi.hdisplay.Draw(win, hmatrix)
 	pi.mdisplay.Draw(win, mmatrix)
 	pi.onsdisplay.Draw(win, onsmatrix)
@@ -363,8 +364,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 127, 127, 5, 3)
 		mode = SpellCastDesca
-		manaCost = 990
-		damage = 90
+		manaCost = 940
+		damage = 105
 	}
 
 	return &SpellData{
@@ -664,7 +665,7 @@ func (p *Player) Update() {
 		dt := time.Since(p.lastDrank).Seconds()
 		if p.drinkingHealthPotions && !p.drinkingManaPotions {
 			if dt > time.Second.Seconds()/4 {
-				p.hp += 30
+				p.hp += 20
 				if p.hp > MaxHealth {
 					p.hp = MaxHealth
 				}
@@ -698,7 +699,7 @@ func (p *Player) Update() {
 			p.headFrame = p.headFrames[0]
 			p.bodyFrame = p.getNextDeadFrame(DeadDown)
 		}
-		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 25)))
+		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 20)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
 		p.nameMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
