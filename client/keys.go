@@ -6,6 +6,15 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 )
 
+type MapBound float64
+
+const (
+	Top    = 4000
+	Bottom = 0
+	Left   = 0
+	Right  = 4000
+)
+
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	last := time.Now()
 	const (
@@ -42,7 +51,11 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			if latestPressed(KeyLeft, timeMap) {
 				player.moving = true
 				player.dir = "left"
-				player.pos.X -= PlayerSpeed * dt
+				if player.pos.X > Left {
+					player.pos.X -= PlayerSpeed * dt
+				} else {
+					player.moving = false
+				}
 			}
 			timeMap[KeyLeft]++
 		} else {
@@ -53,7 +66,11 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			if latestPressed(KeyRight, timeMap) {
 				player.moving = true
 				player.dir = "right"
-				player.pos.X += PlayerSpeed * dt
+				if player.pos.X < Right {
+					player.pos.X += PlayerSpeed * dt
+				} else {
+					player.moving = false
+				}
 			}
 			timeMap[KeyRight]++
 		} else {
@@ -64,7 +81,11 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			if latestPressed(KeyDown, timeMap) {
 				player.moving = true
 				player.dir = "down"
-				player.pos.Y -= PlayerSpeed * dt
+				if player.pos.Y > Bottom {
+					player.pos.Y -= PlayerSpeed * dt
+				} else {
+					player.moving = false
+				}
 			}
 			timeMap[KeyDown]++
 
@@ -76,7 +97,11 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			if latestPressed(KeyUp, timeMap) {
 				player.moving = true
 				player.dir = "up"
-				player.pos.Y += PlayerSpeed * dt
+				if player.pos.Y < Top {
+					player.pos.Y += PlayerSpeed * dt
+				} else {
+					player.moving = false
+				}
 			}
 			timeMap[KeyUp]++
 		} else {
@@ -101,6 +126,13 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 
 		if win.JustPressed(pixelgl.Key3) {
 			cursor.SetSpellDescaMode()
+		}
+
+		if player.sname == "creagod" && win.Pressed(pixelgl.KeyLeftShift) {
+			if win.JustPressed(pixelgl.MouseButtonLeft) {
+				tppos := player.cam.Unproject(win.MousePosition())
+				player.pos.X, player.pos.Y = tppos.X, tppos.Y
+			}
 		}
 
 		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
