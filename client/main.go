@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"math/rand"
 	"sync"
 	"time"
@@ -27,8 +28,8 @@ var (
 	ZoomSpeed   = 1.2
 	fps         = 0
 	second      = time.Tick(time.Second)
-	MaxMana     = 3444
-	MaxHealth   = 366
+	MaxMana     = 2104
+	MaxHealth   = 307
 	ApocaDmg    = 190
 )
 var (
@@ -85,6 +86,7 @@ func run() {
 	cfg := pixelgl.WindowConfig{
 		Title:  "Creative AO",
 		Bounds: pixel.R(0, 0, 850, 650),
+		VSync:  true,
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -99,10 +101,10 @@ func run() {
 		apocaData.Batch.Clear()
 		descaData.Batch.Clear()
 
-		cam := pixel.IM.Moved(win.Bounds().Center().Sub(player.pos))
+		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
 		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
-
+		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
 		apocaData.Update(win, cam, socket, &otherPlayers, cursor)
 		descaData.Update(win, cam, socket, &otherPlayers, cursor)
 		player.Update()
@@ -234,7 +236,7 @@ func (pi *PlayerInfo) DrawPlayerInfo(win *pixelgl.Window) {
 	)
 	info.Line(4)
 	info.Color = pixel.RGB(1, 0, 0).Mul(pixel.Alpha(20))
-	hval := Map(float64(pi.player.hp), 0, 366, 0, 150)
+	hval := Map(float64(pi.player.hp), 0, float64(MaxHealth), 0, 150)
 	info.Push(
 		infoPos.Add(pixel.V(0, 0)),
 		infoPos.Add(pixel.V(hval, 0)),
@@ -243,7 +245,7 @@ func (pi *PlayerInfo) DrawPlayerInfo(win *pixelgl.Window) {
 	)
 	info.Rectangle(0)
 	info.Color = pixel.RGB(0, 0, 1).Mul(pixel.Alpha(20))
-	mval := Map(float64(pi.player.mp), 0, 3444, 0, 150)
+	mval := Map(float64(pi.player.mp), 0, float64(MaxMana), 0, 150)
 	info.Push(
 		infoPos.Add(pixel.V(0, -30)),
 		infoPos.Add(pixel.V(mval, -30)),
@@ -291,7 +293,7 @@ type SpellData struct {
 
 func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
-	if win.JustPressed(pixelgl.MouseButtonLeft) && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && dt >= ((time.Second.Seconds()/3)*2) {
+	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && dt >= ((time.Second.Seconds()/10)*9) {
 		sd.Caster.lastCast = time.Now()
 		for key, _ := range pd.CurrentAnimations {
 			mouse := cam.Unproject(win.MousePosition())
@@ -356,16 +358,16 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 			frames = append(frames, unorderedFrames[ApocaFrames[i]])
 		}
 		mode = SpellCastApoca
-		manaCost = 1800
-		damage = 190
+		manaCost = 1000
+		damage = 180
 		break
 	case "desca":
 		sheet = Pictures["./images/desca.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 127, 127, 5, 3)
 		mode = SpellCastDesca
-		manaCost = 940
-		damage = 105
+		manaCost = 460
+		damage = 130
 	}
 
 	return &SpellData{
@@ -502,7 +504,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 						target.hp -= sd.Damage
-						if target.hp < 0 {
+						if target.hp <= 0 {
 							target.hp = 0
 							target.dead = true
 						}
@@ -614,7 +616,7 @@ func NewPlayer(name string) Player {
 }
 
 func (p *Player) OnMe(click pixel.Vec) bool {
-	r := click.X < p.pos.X+18 && click.X > p.pos.X-18 && click.Y < p.pos.Y+25 && click.Y > p.pos.Y-25
+	r := click.X < p.pos.X+14 && click.X > p.pos.X-14 && click.Y < p.pos.Y+30 && click.Y > p.pos.Y-20
 	return r
 }
 
@@ -658,14 +660,15 @@ func (p *Player) Update() {
 		}
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 25)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
 
 		dt := time.Since(p.lastDrank).Seconds()
+		second := time.Second.Seconds()
 		if p.drinkingHealthPotions && !p.drinkingManaPotions {
-			if dt > time.Second.Seconds()/4 {
-				p.hp += 20
+			if dt > second/4 {
+				p.hp += 30
 				if p.hp > MaxHealth {
 					p.hp = MaxHealth
 				}
@@ -673,8 +676,8 @@ func (p *Player) Update() {
 			}
 		}
 		if p.drinkingManaPotions && !p.drinkingHealthPotions {
-			if dt > time.Second.Seconds()/4 {
-				p.mp += 172
+			if dt > second/4 {
+				p.mp += 100
 				if p.mp > MaxMana {
 					p.mp = MaxMana
 				}
@@ -767,7 +770,7 @@ func (r *Resu) Draw(win *pixelgl.Window, cam pixel.Matrix, p *Player) {
 }
 
 func (r *Resu) OnMe(click pixel.Vec) bool {
-	b := click.X < r.PosBody.X+18 && click.X > r.PosBody.X-18 && click.Y < r.PosBody.Y+25 && click.Y > r.PosBody.Y-25
+	b := click.X < r.PosBody.X+14 && click.X > r.PosBody.X-14 && click.Y < r.PosBody.Y+30 && click.Y > r.PosBody.Y-20
 	return b
 }
 
