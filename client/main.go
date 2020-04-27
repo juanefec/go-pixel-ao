@@ -23,7 +23,7 @@ import (
 )
 
 var (
-	PlayerSpeed = 200.0
+	PlayerSpeed = 185.0
 	Zoom        = 1.0
 	ZoomSpeed   = 1.1
 	fps         = 0
@@ -78,8 +78,9 @@ func run() {
 		"./images/bodyBlueIcon.png",
 		"./images/blueBody.png",
 		"./images/redBody.png",
-		"./images/superExplosionS.png",
+		"./images/explosion.png",
 		"./images/fireball.png",
+		"./images/creagod.png",
 	)
 	ld, err := SetNameWindow()
 	if err != nil {
@@ -336,41 +337,45 @@ type SpellData struct {
 
 func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
+	dtproj := time.Since(sd.Caster.lastCastProj).Seconds()
 	casted := false
-	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && dt >= ((time.Second.Seconds()/10)*9) {
-		sd.Caster.lastCast = time.Now()
-		for key := range pd.CurrentAnimations {
-			mouse := cam.Unproject(win.MousePosition())
-			if pd.CurrentAnimations[key].OnMe(mouse) && !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastFireball {
+	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode {
+		if dt >= ((time.Second.Seconds() / 10) * 9) {
+			sd.Caster.lastCast = time.Now()
+			for key := range pd.CurrentAnimations {
+				mouse := cam.Unproject(win.MousePosition())
+				if !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastFireball && pd.CurrentAnimations[key].OnMe(mouse) {
+					spell := models.SpellMsg{
+						ID:       s.ClientID,
+						Type:     sd.SpellName,
+						TargetID: key,
+						Name:     sd.Caster.sname,
+						X:        mouse.X,
+						Y:        mouse.Y,
+					}
+					paylaod, _ := json.Marshal(spell)
+					s.O <- models.NewMesg(models.Spell, paylaod)
 
-				spell := models.SpellMsg{
-					ID:       s.ClientID,
-					Type:     sd.SpellName,
-					TargetID: key,
-					Name:     sd.Caster.sname,
-					X:        mouse.X,
-					Y:        mouse.Y,
+					sd.Caster.mp -= sd.ManaCost
+					newSpell := &Spell{
+						spellName:   &sd.SpellName,
+						step:        sd.Frames[0],
+						frameNumber: 0.0,
+						matrix:      &pd.CurrentAnimations[key].headMatrix,
+						last:        time.Now(),
+					}
+
+					newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+					sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+
+					casted = true
+					break
 				}
-				paylaod, _ := json.Marshal(spell)
-				s.O <- models.NewMesg(models.Spell, paylaod)
-
-				sd.Caster.mp -= sd.ManaCost
-				newSpell := &Spell{
-					spellName:   &sd.SpellName,
-					step:        sd.Frames[0],
-					frameNumber: 0.0,
-					matrix:      &pd.CurrentAnimations[key].headMatrix,
-					last:        time.Now(),
-				}
-
-				newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-				sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-
-				casted = true
-				break
 			}
 		}
-		if !casted && cursor.Mode == sd.SpellMode && cursor.Mode == SpellCastFireball {
+
+		if !casted && cursor.Mode == sd.SpellMode && cursor.Mode == SpellCastFireball && dtproj >= ((time.Second.Seconds()/10)*6) {
+			sd.Caster.lastCastProj = time.Now()
 			mouse := cam.Unproject(win.MousePosition())
 			spell := models.SpellMsg{
 				ID:       s.ClientID,
@@ -401,7 +406,9 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 			casted = true
 		}
-		cursor.SetNormalMode()
+		if dt >= ((time.Second.Seconds() / 10) * 9) {
+			cursor.SetNormalMode()
+		}
 	}
 	if sd.SpellName == "fireball" {
 	FBALLS:
@@ -417,7 +424,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			}
 			for key := range pd.CurrentAnimations {
 				p := pd.CurrentAnimations[key]
-				if sd.CurrentAnimations[i].caster != key && p.OnMe(sd.CurrentAnimations[i].pos) {
+				if sd.CurrentAnimations[i].caster != key && !p.dead && p.OnMe(sd.CurrentAnimations[i].pos) {
 					p.hp -= sd.Damage
 					if p.hp <= 0 {
 						p.hp = 0
@@ -431,7 +438,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 					continue FBALLS
 				}
 			}
-			if sd.CurrentAnimations[i].caster != s.ClientID && sd.Caster.OnMe(sd.CurrentAnimations[i].pos) {
+			if sd.CurrentAnimations[i].caster != s.ClientID && !sd.Caster.dead && sd.Caster.OnMe(sd.CurrentAnimations[i].pos) {
 				sd.Caster.hp -= sd.Damage
 				if sd.Caster.hp <= 0 {
 					sd.Caster.hp = 0
@@ -495,13 +502,13 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 460
 		damage = 130
 	case "explo":
-		sheet = Pictures["./images/superExplosionS.png"]
+		sheet = Pictures["./images/explosion.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
-		frames = getFrames(sheet, 112, 112, 17, 0)
+		frames = getFrames(sheet, 96, 96, 12, 0)
 		mode = SpellCastExplo
 		manaCost = 1550
 		damage = 215
-		speed = 14
+		speed = 13
 	case "fireball":
 		sheet = Pictures["./images/fireball.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -585,6 +592,7 @@ const (
 	TuniDruida = iota
 	RedBody
 	BlueBody
+	GodBody
 	Head
 	CoolHat
 	Staff
@@ -593,6 +601,16 @@ const (
 )
 
 type Skins []*Skin
+
+func (s Skins) Load(imagPath string, t SkinType, w, h, qw, qh float64) {
+	sheet := Pictures[imagPath]
+	skin := &Skin{
+		Pic:    &sheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, sheet),
+		Frames: getFrames(sheet, w, h, qw, qh),
+	}
+	s[t] = skin
+}
 
 func (s Skins) BatchClear() {
 	for i := range s {
@@ -626,71 +644,18 @@ type Skin struct {
 
 func NewPlayersData() PlayersData {
 	pd := PlayersData{}
-	pd.SkinsLen = 8
+	pd.SkinsLen = 9
 	pd.Skins = make([]*Skin, pd.SkinsLen)
-	druidaBodySheet := Pictures["./images/bodydruida.png"]
-	druida := &Skin{
-		Pic:    &druidaBodySheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, druidaBodySheet),
-		Frames: getFrames(druidaBodySheet, 25, 45, 6, 4),
-	}
-	pd.Skins[TuniDruida] = druida
 
-	redBodySheet := Pictures["./images/redBody.png"]
-	red := &Skin{
-		Pic:    &redBodySheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, redBodySheet),
-		Frames: getFrames(redBodySheet, 25, 45, 6, 4),
-	}
-	pd.Skins[RedBody] = red
-
-	blueBodySheet := Pictures["./images/blueBody.png"]
-	blue := &Skin{
-		Pic:    &blueBodySheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, blueBodySheet),
-		Frames: getFrames(blueBodySheet, 25, 45, 6, 4),
-	}
-	pd.Skins[BlueBody] = blue
-
-	headSheet := Pictures["./images/heads.png"]
-	head := &Skin{
-		Pic:    &druidaBodySheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, headSheet),
-		Frames: getFrames(headSheet, 16, 16, 4, 0),
-	}
-	pd.Skins[Head] = head
-
-	hatSheet := Pictures["./images/hatpro.png"]
-	coolHat := &Skin{
-		Pic:    &hatSheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, hatSheet),
-		Frames: getFrames(hatSheet, 25, 32, 4, 0),
-	}
-	pd.Skins[CoolHat] = coolHat
-
-	staffSheet := Pictures["./images/staff.png"]
-	staff := &Skin{
-		Pic:    &staffSheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, staffSheet),
-		Frames: getFrames(staffSheet, 25, 45, 6, 4),
-	}
-	pd.Skins[Staff] = staff
-
-	deadSheet := Pictures["./images/dead.png"]
-	phantom := &Skin{
-		Pic:    &deadSheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, deadSheet),
-		Frames: getFrames(deadSheet, 25, 29, 3, 4),
-	}
-	pd.Skins[Phantom] = phantom
-
-	deadHeadSheet := Pictures["./images/deadHead.png"]
-	phantomHead := &Skin{
-		Pic:    &deadHeadSheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, deadHeadSheet),
-		Frames: getFrames(deadHeadSheet, 16, 16, 4, 0),
-	}
-	pd.Skins[PhantomHead] = phantomHead
+	pd.Skins.Load("./images/bodydruida.png", TuniDruida, 25, 45, 6, 4)
+	pd.Skins.Load("./images/redBody.png", RedBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/blueBody.png", BlueBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/creagod.png", GodBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/heads.png", Head, 16, 16, 4, 0)
+	pd.Skins.Load("./images/hatpro.png", CoolHat, 25, 32, 4, 0)
+	pd.Skins.Load("./images/staff.png", Staff, 25, 45, 6, 4)
+	pd.Skins.Load("./images/dead.png", Phantom, 25, 29, 3, 4)
+	pd.Skins.Load("./images/deadHead.png", PhantomHead, 16, 16, 4, 0)
 
 	pd.CurrentAnimations = map[ksuid.KSUID]*Player{}
 	pd.AnimationsMutex = &sync.RWMutex{}
@@ -822,6 +787,7 @@ type Player struct {
 	lastBodyFrame         time.Time
 	lastDrank             time.Time
 	lastCast              time.Time
+	lastCastProj          time.Time
 	drinkingManaPotions   bool
 	drinkingHealthPotions bool
 	dead                  bool
@@ -865,6 +831,11 @@ func NewPlayer(name string, skin SkinType) Player {
 	case BlueBody:
 		bodySheet = Pictures["./images/blueBody.png"]
 		p.name.Color = colornames.Blue
+
+	case GodBody:
+		bodySheet = Pictures["./images/creagod.png"]
+		p.name.Color = colornames.Lightseagreen
+
 	}
 
 	fmt.Fprintln(p.name, name)

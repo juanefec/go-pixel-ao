@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"time"
 
 	"github.com/faiface/pixel/pixelgl"
@@ -14,6 +16,15 @@ const (
 	Left   = 0
 	Right  = 4000
 )
+
+type KeyConfig struct {
+	Apoca  int `json:"apoca_key"`
+	Desca  int `json:"desca_key"`
+	Explo  int `json:"explo_key"`
+	FireB  int `json:"fireball_key"`
+	Rojas  int `json:"rojas_key"`
+	Azules int `json:"azules_key"`
+}
 
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	last := time.Now()
@@ -30,6 +41,18 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		KeyLeft:  -1,
 		KeyRight: -1,
 	}
+	rawConfig, err := ioutil.ReadFile("./key-config.json")
+	if err != nil {
+		panic(err)
+	}
+
+	key := KeyConfig{}
+	err = json.Unmarshal(rawConfig, &key)
+	if err != nil {
+		panic(err)
+	}
+
+	var ()
 
 	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
 		var key pixelgl.Button
@@ -110,31 +133,31 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			timeMap[KeyUp] = -1
 		}
 
-		if win.Pressed(pixelgl.KeyF) {
+		if win.Pressed(pixelgl.Button(key.Azules)) {
 			player.drinkingManaPotions = true
 		} else {
 			player.drinkingManaPotions = false
 		}
 
-		if win.Pressed(pixelgl.MouseButtonRight) {
+		if win.Pressed(pixelgl.Button(key.Rojas)) {
 			player.drinkingHealthPotions = true
 		} else {
 			player.drinkingHealthPotions = false
 		}
 
-		if win.JustPressed(pixelgl.Key1) {
+		if win.JustPressed(pixelgl.Button(key.Explo)) {
 			cursor.SetSpellExploMode()
 		}
 
-		if win.JustPressed(pixelgl.Key2) {
+		if win.JustPressed(pixelgl.Button(key.Apoca)) {
 			cursor.SetSpellApocaMode()
 		}
 
-		if win.JustPressed(pixelgl.Key3) {
+		if win.JustPressed(pixelgl.Button(key.Desca)) {
 			cursor.SetSpellDescaMode()
 		}
 
-		if win.JustPressed(pixelgl.Key4) {
+		if win.JustPressed(pixelgl.Button(key.FireB)) {
 			cursor.SetSpellFireballMode()
 		}
 

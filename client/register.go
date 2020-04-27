@@ -75,6 +75,12 @@ func SetNameWindow() (LoginData, error) {
 				}
 			}
 			if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
+				if nn == "creagod" {
+					return LoginData{
+						Name: nn,
+						Side: GodBody,
+					}, nil
+				}
 				loginStep = Color
 			}
 		}
