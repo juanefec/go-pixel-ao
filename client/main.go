@@ -554,7 +554,6 @@ func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect) (pixel.Rect, bool) {
 	if i <= len(spellFrames)-1 {
 		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(1.4)
 		a.pos = a.pos.Add(vel)
-		println(a.pos.X, a.pos.Y)
 		(*a.matrix) = a.matrix.Moved(vel)
 		return spellFrames[i], false
 	}
