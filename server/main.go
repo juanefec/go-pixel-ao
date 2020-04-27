@@ -61,7 +61,7 @@ func ServeGame(conn *net.Conn, game *Game) {
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
-	go game.ClientUpdater(client)
+	//go game.ClientUpdater(client)
 
 }
 
@@ -106,11 +106,14 @@ func (c *Client) readPump() {
 		case models.Spell:
 			c.game.eventBroadcast <- BroadcastEvent{
 				Client:  c,
-				Event:   models.Spell,
+				Event:   msg.Type,
 				Payload: msg.Payload}
 			break
 		case models.UpdateServer:
-			c.game.clientsUpdate <- msg.Payload
+			c.game.clientsUpdate <- BroadcastEvent{
+				Client:  c,
+				Event:   msg.Type,
+				Payload: msg.Payload}
 			break
 		}
 		data = bytes.Buffer{}
@@ -152,7 +155,7 @@ type Game struct {
 	Online         int
 	Players        map[ksuid.KSUID]*models.PlayerMsg
 	Pmutex         *sync.RWMutex
-	clientsUpdate  chan []byte
+	clientsUpdate  chan BroadcastEvent
 	clients        map[*Client]bool
 	register       chan *Client
 	unregister     chan *Client
@@ -163,7 +166,7 @@ func NewGame() *Game {
 	return &Game{
 		Online:         0,
 		Players:        make(map[ksuid.KSUID]*models.PlayerMsg),
-		clientsUpdate:  make(chan []byte),
+		clientsUpdate:  make(chan BroadcastEvent),
 		Pmutex:         &sync.RWMutex{},
 		register:       make(chan *Client),
 		unregister:     make(chan *Client),
@@ -200,6 +203,7 @@ func (g *Game) Run() {
 		select {
 		case msg := <-g.clientsUpdate:
 			g.UpdateServer(msg)
+			msg.Client.send <- g.UpdateClient(msg.Client)
 
 		case client := <-g.register:
 			g.clients[client] = true
@@ -214,7 +218,8 @@ func (g *Game) Run() {
 					Event:   models.Disconect,
 					Payload: payload,
 				}
-				client.endupdate <- struct{}{}
+				//client.endupdate <- struct{}{}
+				close(client.send)
 				delete(g.Players, client.ID)
 			}
 
@@ -226,7 +231,7 @@ func (g *Game) Run() {
 }
 
 func (g *Game) ClientUpdater(c *Client) {
-	updater := time.Tick(time.Second / 22)
+	updater := time.Tick(time.Second / 30)
 ULOOP:
 	for {
 		select {
@@ -242,9 +247,9 @@ ULOOP:
 	log.Printf("Exited Game.ClientUpdater: %v", c.ID)
 }
 
-func (g *Game) UpdateServer(message []byte) {
+func (g *Game) UpdateServer(message BroadcastEvent) {
 	var msg models.PlayerMsg
-	err := json.Unmarshal(message, &msg)
+	err := json.Unmarshal(message.Payload, &msg)
 	if err == nil {
 
 		g.Pmutex.Lock()
