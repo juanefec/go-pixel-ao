@@ -78,7 +78,7 @@ func run() {
 		"./images/bodyBlueIcon.png",
 		"./images/blueBody.png",
 		"./images/redBody.png",
-		"./images/explosion.png",
+		"./images/superExplosionS.png",
 		"./images/fireball.png",
 	)
 	ld, err := SetNameWindow()
@@ -326,6 +326,7 @@ type SpellData struct {
 	SpellName         string
 	SpellMode         CursorMode
 	ManaCost, Damage  int
+	SpellSpeed        float64
 	Caster            *Player
 	Frames            []pixel.Rect
 	Pic               *pixel.Picture
@@ -449,7 +450,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 		}
 	} else {
 		for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
-			next, kill := sd.CurrentAnimations[i].NextFrame(sd.Frames)
+			next, kill := sd.CurrentAnimations[i].NextFrame(sd.Frames, sd.SpellSpeed)
 			if kill {
 				if i < len(sd.CurrentAnimations)-1 {
 					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
@@ -472,6 +473,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 	var frames []pixel.Rect
 	var mode CursorMode
 	var manaCost, damage int
+	var speed float64 = 21
 	switch spell {
 	case "apoca":
 		sheet = Pictures["./images/apocas.png"]
@@ -483,6 +485,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastApoca
 		manaCost = 1000
 		damage = 180
+
 		break
 	case "desca":
 		sheet = Pictures["./images/desca.png"]
@@ -492,12 +495,13 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 460
 		damage = 130
 	case "explo":
-		sheet = Pictures["./images/explosion.png"]
+		sheet = Pictures["./images/superExplosionS.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
-		frames = getFrames(sheet, 96, 96, 12, 0)
+		frames = getFrames(sheet, 112, 112, 17, 0)
 		mode = SpellCastExplo
 		manaCost = 1550
 		damage = 215
+		speed = 14
 	case "fireball":
 		sheet = Pictures["./images/fireball.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -508,6 +512,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 	}
 
 	return &SpellData{
+		SpellSpeed:        speed,
 		Caster:            caster,
 		SpellName:         spell,
 		Frames:            frames,
@@ -533,10 +538,10 @@ type Spell struct {
 	last           time.Time
 }
 
-func (a *Spell) NextFrame(spellFrames []pixel.Rect) (pixel.Rect, bool) {
+func (a *Spell) NextFrame(spellFrames []pixel.Rect, speed float64) (pixel.Rect, bool) {
 	dt := time.Since(a.last).Seconds()
 	a.last = time.Now()
-	a.frameNumber += 21 * dt
+	a.frameNumber += speed * dt
 	i := int(a.frameNumber)
 	if i <= len(spellFrames)-1 {
 		return spellFrames[i], false
