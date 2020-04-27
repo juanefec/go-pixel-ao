@@ -25,7 +25,7 @@ import (
 var (
 	PlayerSpeed = 200.0
 	Zoom        = 1.0
-	ZoomSpeed   = 1.2
+	ZoomSpeed   = 1.1
 	fps         = 0
 	second      = time.Tick(time.Second)
 	MaxMana     = 2104
@@ -70,16 +70,28 @@ func run() {
 		"./images/buda.png",
 		"./images/sauce.png",
 		"./images/grass.png",
-		"./images/bacu.png",
-		"./images/hat.png",
+		"./images/staff.png",
+		"./images/hatpro.png",
+		"./images/horizontalfence.png",
+		"./images/verticalfence.png",
+		"./images/bodyRedIcon.png",
+		"./images/bodyBlueIcon.png",
+		"./images/blueBody.png",
+		"./images/redBody.png",
+		"./images/explosion.png",
+		"./images/fireball.png",
 	)
-	name, err := SetNameWindow()
+	ld, err := SetNameWindow()
 	if err != nil {
 		log.Panic(err)
 	}
-	player := NewPlayer(name)
-	apocaData := NewSpellData("apoca", &player)
-	descaData := NewSpellData("desca", &player)
+	player := NewPlayer(ld.Name, ld.Side)
+	spells := GameSpells{
+		NewSpellData("apoca", &player),
+		NewSpellData("desca", &player),
+		NewSpellData("explo", &player),
+		NewSpellData("fireball", &player),
+	}
 	forest := NewForest()
 	buda := NewBuda(pixel.V(2000, 3400))
 	otherPlayers := NewPlayersData()
@@ -100,34 +112,26 @@ func run() {
 	}
 	cursor := NewCursor(win)
 	go keyInputs(win, &player, cursor)
-	go GameUpdate(socket, &otherPlayers, &player, apocaData, descaData)
+	go GameUpdate(socket, &otherPlayers, &player, spells...)
 
 	for !win.Closed() {
 		win.Clear(colornames.Black)
-		forest.GrassBatch.Draw(win)
-		apocaData.Batch.Clear()
-		descaData.Batch.Clear()
 		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
 		player.cam = cam
 		win.SetMatrix(cam)
 		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
 
-		apocaData.Update(win, cam, socket, &otherPlayers, cursor)
-		descaData.Update(win, cam, socket, &otherPlayers, cursor)
-		player.Update()
-
+		forest.GrassBatch.Draw(win)
+		forest.FenceBatchHTOP.Draw(win)
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
-		player.body.Draw(win, player.bodyMatrix)
-		player.bacu.Draw(win, player.bodyMatrix)
-		player.head.Draw(win, player.headMatrix)
-		player.hat.Draw(win, player.hatMatrix)
-		player.name.Draw(win, player.nameMatrix)
+		player.Draw(win)
 		buda.Draw(win)
 		forest.Batch.Draw(win)
 		forest.SauceBatch.Draw(win)
-		apocaData.Batch.Draw(win)
-		descaData.Batch.Draw(win)
+		forest.FenceBatchV.Draw(win)
+		forest.FenceBatchHBOT.Draw(win)
+		spells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam)
 		cursor.Draw(cam)
 		fps++
@@ -154,6 +158,8 @@ const (
 	Normal CursorMode = iota
 	SpellCastDesca
 	SpellCastApoca
+	SpellCastExplo
+	SpellCastFireball
 )
 
 type Cursor struct {
@@ -168,6 +174,12 @@ func NewCursor(win *pixelgl.Window) *Cursor {
 	}
 }
 
+func (c *Cursor) SetSpellFireballMode() {
+	c.Mode = SpellCastFireball
+}
+func (c *Cursor) SetSpellExploMode() {
+	c.Mode = SpellCastExplo
+}
 func (c *Cursor) SetSpellApocaMode() {
 	c.Mode = SpellCastApoca
 }
@@ -300,6 +312,16 @@ func Map(v, s1, st1, s2, st2 float64) float64 {
 	return newval
 }
 
+type GameSpells []*SpellData
+
+func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+	for i := range gs {
+		gs[i].Batch.Clear()
+		gs[i].Update(win, cam, s, pd, cursor)
+		gs[i].Batch.Draw(win)
+	}
+}
+
 type SpellData struct {
 	SpellName         string
 	SpellMode         CursorMode
@@ -313,11 +335,24 @@ type SpellData struct {
 
 func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
+	casted := false
 	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && dt >= ((time.Second.Seconds()/10)*9) {
 		sd.Caster.lastCast = time.Now()
 		for key := range pd.CurrentAnimations {
 			mouse := cam.Unproject(win.MousePosition())
-			if pd.CurrentAnimations[key].OnMe(mouse) && !pd.CurrentAnimations[key].dead {
+			if pd.CurrentAnimations[key].OnMe(mouse) && !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastFireball {
+
+				spell := models.SpellMsg{
+					ID:       s.ClientID,
+					Type:     sd.SpellName,
+					TargetID: key,
+					Name:     sd.Caster.sname,
+					X:        mouse.X,
+					Y:        mouse.Y,
+				}
+				paylaod, _ := json.Marshal(spell)
+				s.O <- models.NewMesg(models.Spell, paylaod)
+
 				sd.Caster.mp -= sd.ManaCost
 				newSpell := &Spell{
 					spellName:   &sd.SpellName,
@@ -329,36 +364,104 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 
 				newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 				sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-				spell := models.SpellMsg{
-					ID:       s.ClientID,
-					Type:     sd.SpellName,
-					TargetID: key,
-					Name:     "name",
-					X:        mouse.X,
-					Y:        mouse.Y,
-				}
-				paylaod, _ := json.Marshal(spell)
-				s.O <- models.NewMesg(models.Spell, paylaod)
 
+				casted = true
 				break
 			}
 		}
+		if !casted && cursor.Mode == sd.SpellMode && cursor.Mode == SpellCastFireball {
+			mouse := cam.Unproject(win.MousePosition())
+			spell := models.SpellMsg{
+				ID:       s.ClientID,
+				Type:     sd.SpellName,
+				TargetID: ksuid.Nil,
+				Name:     sd.Caster.sname,
+				X:        mouse.X,
+				Y:        mouse.Y,
+			}
+			paylaod, _ := json.Marshal(spell)
+			s.O <- models.NewMesg(models.Spell, paylaod)
+
+			vel := mouse.Sub(cam.Unproject(win.Bounds().Center()))
+			centerMatrix := sd.Caster.bodyMatrix.Rotated(cam.Unproject(win.Bounds().Center()), vel.Angle()+(math.Pi/2)).Scaled(cam.Unproject(win.Bounds().Center()), 2)
+			sd.Caster.mp -= sd.ManaCost
+			newSpell := &Spell{
+				caster:         s.ClientID,
+				pos:            sd.Caster.pos,
+				vel:            vel,
+				spellName:      &sd.SpellName,
+				step:           sd.Frames[0],
+				frameNumber:    0.0,
+				matrix:         &centerMatrix,
+				last:           time.Now(),
+				projectileLife: time.Now(),
+			}
+			newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+			casted = true
+		}
 		cursor.SetNormalMode()
 	}
-
-	for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
-		next, kill := sd.CurrentAnimations[i].NextFrame(sd.Frames)
-		if kill {
-			if i < len(sd.CurrentAnimations)-1 {
-				copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+	if sd.SpellName == "fireball" {
+	FBALLS:
+		for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
+			next, kill := sd.CurrentAnimations[i].NextFrameFireball(sd.Frames)
+			if kill {
+				if i < len(sd.CurrentAnimations)-1 {
+					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+				}
+				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+				continue
 			}
-			sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
-			sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
-			continue
+			for key := range pd.CurrentAnimations {
+				p := pd.CurrentAnimations[key]
+				if sd.CurrentAnimations[i].caster != key && p.OnMe(sd.CurrentAnimations[i].pos) {
+					p.hp -= sd.Damage
+					if p.hp <= 0 {
+						p.hp = 0
+						p.dead = true
+					}
+					if i < len(sd.CurrentAnimations)-1 {
+						copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+					}
+					sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+					sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+					continue FBALLS
+				}
+			}
+			if sd.CurrentAnimations[i].caster != s.ClientID && sd.Caster.OnMe(sd.CurrentAnimations[i].pos) {
+				sd.Caster.hp -= sd.Damage
+				if sd.Caster.hp <= 0 {
+					sd.Caster.hp = 0
+					sd.Caster.dead = true
+				}
+				if i < len(sd.CurrentAnimations)-1 {
+					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+				}
+				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+				continue
+			}
+			sd.CurrentAnimations[i].step = next
+			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
+			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix))
 		}
-		sd.CurrentAnimations[i].step = next
-		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
-		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix))
+	} else {
+		for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
+			next, kill := sd.CurrentAnimations[i].NextFrame(sd.Frames)
+			if kill {
+				if i < len(sd.CurrentAnimations)-1 {
+					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+				}
+				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+				continue
+			}
+			sd.CurrentAnimations[i].step = next
+			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
+			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix))
+		}
 	}
 }
 
@@ -388,6 +491,20 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastDesca
 		manaCost = 460
 		damage = 130
+	case "explo":
+		sheet = Pictures["./images/explosion.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 96, 96, 12, 0)
+		mode = SpellCastExplo
+		manaCost = 1550
+		damage = 215
+	case "fireball":
+		sheet = Pictures["./images/fireball.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 24, 24, 7, 0)
+		mode = SpellCastFireball
+		manaCost = 300
+		damage = 80
 	}
 
 	return &SpellData{
@@ -404,13 +521,16 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 }
 
 type Spell struct {
-	target      *Player
-	spellName   *string
-	step        pixel.Rect
-	frame       *pixel.Sprite
-	frameNumber float64
-	matrix      *pixel.Matrix
-	last        time.Time
+	caster         ksuid.KSUID
+	vel, pos       pixel.Vec // para proyectiles
+	projectileLife time.Time
+	target         *Player
+	spellName      *string
+	step           pixel.Rect
+	frame          *pixel.Sprite
+	frameNumber    float64
+	matrix         *pixel.Matrix
+	last           time.Time
 }
 
 func (a *Spell) NextFrame(spellFrames []pixel.Rect) (pixel.Rect, bool) {
@@ -425,63 +545,153 @@ func (a *Spell) NextFrame(spellFrames []pixel.Rect) (pixel.Rect, bool) {
 	return spellFrames[0], true
 }
 
+func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect) (pixel.Rect, bool) {
+	dt := time.Since(a.last).Seconds()
+	pdt := time.Since(a.projectileLife).Seconds()
+	a.last = time.Now()
+	a.frameNumber += 21 * dt
+	i := int(a.frameNumber)
+	if i <= len(spellFrames)-1 {
+		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(1.4)
+		a.pos = a.pos.Add(vel)
+		println(a.pos.X, a.pos.Y)
+		(*a.matrix) = a.matrix.Moved(vel)
+		return spellFrames[i], false
+	}
+
+	a.frameNumber = .0
+	if pdt > time.Second.Seconds()*1.5 {
+		return spellFrames[0], true
+	}
+	return spellFrames[0], false
+}
+
 type PlayersData struct {
-	Online                                                                    int
-	BodyFrames, HeadFrames, DeadFrames, DeadHeadFrames, BacuFrames, HatFrames []pixel.Rect
-	BodyPic, HeadPic, DeadPic, DeadHeadPic, BacuPic, HatPic                   *pixel.Picture
-	BodyBatch, HeadBatch, DeadBatch, DeadHeadBatch, BacuBatch, HatBatch       *pixel.Batch
-	CurrentAnimations                                                         map[ksuid.KSUID]*Player
-	AnimationsMutex                                                           *sync.RWMutex
+	Online            int
+	SkinsLen          int
+	DeadSkinIndex     int
+	Skins             Skins
+	CurrentAnimations map[ksuid.KSUID]*Player
+	AnimationsMutex   *sync.RWMutex
+}
+
+type SkinType int
+
+const (
+	TuniDruida = iota
+	RedBody
+	BlueBody
+	Head
+	CoolHat
+	Staff
+	Phantom
+	PhantomHead
+)
+
+type Skins []*Skin
+
+func (s Skins) BatchClear() {
+	for i := range s {
+		s[i].Batch.Clear()
+	}
+}
+func (s Skins) DrawToBatch(p *Player) {
+	p.Update()
+	if !p.dead {
+		p.body.Draw(s[p.bodySkin].Batch, p.bodyMatrix)
+		p.bacu.Draw(s[p.staffSkin].Batch, p.bodyMatrix)
+		p.head.Draw(s[p.headSkin].Batch, p.headMatrix)
+		p.hat.Draw(s[p.hatSkin].Batch, p.hatMatrix)
+	} else {
+		p.body.Draw(s[Phantom].Batch, p.bodyMatrix)
+		p.head.Draw(s[PhantomHead].Batch, p.headMatrix)
+	}
+}
+
+func (s Skins) Draw(win *pixelgl.Window) {
+	for i := range s {
+		s[i].Batch.Draw(win)
+	}
+}
+
+type Skin struct {
+	Frames []pixel.Rect
+	Pic    *pixel.Picture
+	Batch  *pixel.Batch
 }
 
 func NewPlayersData() PlayersData {
-	bodySheet := Pictures["./images/bodydruida.png"]
-	bodyBatch := pixel.NewBatch(&pixel.TrianglesData{}, bodySheet)
-	bodyFrames := getFrames(bodySheet, 25, 45, 6, 4)
+	pd := PlayersData{}
+	pd.SkinsLen = 8
+	pd.Skins = make([]*Skin, pd.SkinsLen)
+	druidaBodySheet := Pictures["./images/bodydruida.png"]
+	druida := &Skin{
+		Pic:    &druidaBodySheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, druidaBodySheet),
+		Frames: getFrames(druidaBodySheet, 25, 45, 6, 4),
+	}
+	pd.Skins[TuniDruida] = druida
+
+	redBodySheet := Pictures["./images/redBody.png"]
+	red := &Skin{
+		Pic:    &redBodySheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, redBodySheet),
+		Frames: getFrames(redBodySheet, 25, 45, 6, 4),
+	}
+	pd.Skins[RedBody] = red
+
+	blueBodySheet := Pictures["./images/blueBody.png"]
+	blue := &Skin{
+		Pic:    &blueBodySheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, blueBodySheet),
+		Frames: getFrames(blueBodySheet, 25, 45, 6, 4),
+	}
+	pd.Skins[BlueBody] = blue
 
 	headSheet := Pictures["./images/heads.png"]
-	headBatch := pixel.NewBatch(&pixel.TrianglesData{}, headSheet)
-	headFrames := getFrames(headSheet, 16, 16, 4, 0)
+	head := &Skin{
+		Pic:    &druidaBodySheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, headSheet),
+		Frames: getFrames(headSheet, 16, 16, 4, 0),
+	}
+	pd.Skins[Head] = head
 
-	hatSheet := Pictures["./images/hat.png"]
-	hatBatch := pixel.NewBatch(&pixel.TrianglesData{}, hatSheet)
-	hatFrames := getFrames(hatSheet, 16, 32, 4, 0)
+	hatSheet := Pictures["./images/hatpro.png"]
+	coolHat := &Skin{
+		Pic:    &hatSheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, hatSheet),
+		Frames: getFrames(hatSheet, 25, 32, 4, 0),
+	}
+	pd.Skins[CoolHat] = coolHat
 
-	bacuSheet := Pictures["./images/bacu.png"]
-	bacuBatch := pixel.NewBatch(&pixel.TrianglesData{}, bacuSheet)
-	bacuFrames := getFrames(bacuSheet, 25, 45, 6, 4)
+	staffSheet := Pictures["./images/staff.png"]
+	staff := &Skin{
+		Pic:    &staffSheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, staffSheet),
+		Frames: getFrames(staffSheet, 25, 45, 6, 4),
+	}
+	pd.Skins[Staff] = staff
 
 	deadSheet := Pictures["./images/dead.png"]
-	deadBatch := pixel.NewBatch(&pixel.TrianglesData{}, deadSheet)
-	deadFrames := getFrames(deadSheet, 25, 29, 3, 4)
+	phantom := &Skin{
+		Pic:    &deadSheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, deadSheet),
+		Frames: getFrames(deadSheet, 25, 29, 3, 4),
+	}
+	pd.Skins[Phantom] = phantom
 
 	deadHeadSheet := Pictures["./images/deadHead.png"]
-	deadHeadBatch := pixel.NewBatch(&pixel.TrianglesData{}, deadHeadSheet)
-	deadHeadFrames := getFrames(deadHeadSheet, 16, 16, 4, 0)
-
-	return PlayersData{
-		HatBatch:          hatBatch,
-		HatFrames:         hatFrames,
-		HatPic:            &hatSheet,
-		BacuBatch:         bacuBatch,
-		BacuFrames:        bacuFrames,
-		BacuPic:           &bacuSheet,
-		BodyFrames:        bodyFrames,
-		HeadFrames:        headFrames,
-		BodyPic:           &bodySheet,
-		HeadPic:           &headSheet,
-		BodyBatch:         bodyBatch,
-		HeadBatch:         headBatch,
-		DeadFrames:        deadFrames,
-		DeadHeadFrames:    deadHeadFrames,
-		DeadPic:           &deadSheet,
-		DeadHeadPic:       &deadHeadSheet,
-		DeadBatch:         deadBatch,
-		DeadHeadBatch:     deadHeadBatch,
-		CurrentAnimations: map[ksuid.KSUID]*Player{},
-		AnimationsMutex:   &sync.RWMutex{},
-		Online:            0,
+	phantomHead := &Skin{
+		Pic:    &deadHeadSheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, deadHeadSheet),
+		Frames: getFrames(deadHeadSheet, 16, 16, 4, 0),
 	}
+	pd.Skins[PhantomHead] = phantomHead
+
+	pd.CurrentAnimations = map[ksuid.KSUID]*Player{}
+	pd.AnimationsMutex = &sync.RWMutex{}
+	pd.Online = 0
+	return pd
 }
 func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData) {
 	for {
@@ -500,7 +710,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						player, ok := pd.CurrentAnimations[p.ID]
 						if !ok {
 							pd.Online++
-							np := NewPlayer(p.Name)
+							np := NewPlayer(p.Name, SkinType(p.Skin))
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
 						}
@@ -517,23 +727,27 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 				spell := models.SpellMsg{}
 				json.Unmarshal(msg.Payload, &spell)
 
-				target := &Player{}
-				if s.ClientID == spell.TargetID {
-					target = p
-				} else {
-					target = pd.CurrentAnimations[spell.TargetID]
+				newSpell := &Spell{
+					spellName:      &spell.Type,
+					frameNumber:    0.0,
+					last:           time.Now(),
+					projectileLife: time.Now(),
 				}
 
-				newSpell := &Spell{
-					spellName:   &spell.Type,
-					target:      target,
-					frameNumber: 0.0,
-					matrix:      &target.headMatrix,
-					last:        time.Now(),
+				target := &Player{}
+				if spell.Type != "fireball" {
+					if s.ClientID == spell.TargetID {
+						target = p
+					} else {
+						target = pd.CurrentAnimations[spell.TargetID]
+					}
+					newSpell.target = target
+					newSpell.matrix = &target.headMatrix
 				}
+
 				for i := range ssd {
 					sd := ssd[i]
-					if spell.Type == sd.SpellName {
+					if spell.Type == sd.SpellName && spell.Type != "fireball" {
 						newSpell.step = sd.Frames[0]
 						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
@@ -543,6 +757,17 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 							target.dead = true
 						}
 						break
+					} else if spell.Type == sd.SpellName && spell.Type == "fireball" {
+						caster := pd.CurrentAnimations[spell.ID]
+						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+						centerMatrix := caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+						newSpell.caster = spell.ID
+						newSpell.vel = vel
+						newSpell.pos = caster.pos
+						newSpell.matrix = &centerMatrix
+						newSpell.step = sd.Frames[0]
+						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 					}
 				}
 			case models.Disconect:
@@ -559,36 +784,18 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 }
 
 func (pd *PlayersData) Draw(win *pixelgl.Window) {
-	pd.BodyBatch.Clear()
-	pd.HeadBatch.Clear()
-	pd.DeadBatch.Clear()
-	pd.DeadHeadBatch.Clear()
-	pd.BacuBatch.Clear()
-	pd.HatBatch.Clear()
+	pd.Skins.BatchClear()
 	pd.AnimationsMutex.RLock()
 	for _, p := range pd.CurrentAnimations {
 		pd.AnimationsMutex.RUnlock()
-		p.Update()
-		if !p.dead {
-			p.body.Draw(pd.BodyBatch, p.bodyMatrix)
-			p.bacu.Draw(pd.BacuBatch, p.bodyMatrix)
-			p.head.Draw(pd.HeadBatch, p.headMatrix)
-			p.hat.Draw(pd.HatBatch, p.hatMatrix)
-		} else {
-			p.body.Draw(pd.DeadBatch, p.bodyMatrix)
-			p.head.Draw(pd.DeadHeadBatch, p.headMatrix)
-		}
+		pd.Skins.DrawToBatch(p)
 		p.name.Draw(win, p.nameMatrix)
 		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
 	pd.AnimationsMutex.RUnlock()
-	pd.BodyBatch.Draw(win)
-	pd.HeadBatch.Draw(win)
-	pd.BacuBatch.Draw(win)
-	pd.DeadBatch.Draw(win)
-	pd.DeadHeadBatch.Draw(win)
-	pd.HatBatch.Draw(win)
+	pd.Skins.Draw(win)
+
 }
 
 type Player struct {
@@ -596,6 +803,7 @@ type Player struct {
 	headPic, bodyPic, deadPic, deadHeadPic, bacuPic, hatPic                   *pixel.Picture
 	cam, headMatrix, bodyMatrix, nameMatrix, hatMatrix                        pixel.Matrix
 	bodyFrame, headFrame, bacuFrame, hatFrame                                 pixel.Rect
+	bodySkin, headSkin, hatSkin, staffSkin                                    SkinType
 	head, body, bacu, hat                                                     *pixel.Sprite
 	hp, mp                                                                    int // health/mana points
 
@@ -615,25 +823,20 @@ type Player struct {
 	dead                  bool
 }
 
-func NewPlayer(name string) Player {
+func NewPlayer(name string, skin SkinType) Player {
 	p := &Player{}
 	p.sname = name
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	p.name = text.New(pixel.V(-28, 0), basicAtlas)
-	p.name.Color = colornames.Blue
-	fmt.Fprintln(p.name, name)
-
-	bodySheet := Pictures["./images/bodydruida.png"]
-	bodyFrames := getFrames(bodySheet, 25, 45, 6, 4)
 
 	headSheet := Pictures["./images/heads.png"]
 	headFrames := getFrames(headSheet, 16, 16, 4, 0)
 
-	bacuSheet := Pictures["./images/bacu.png"]
+	bacuSheet := Pictures["./images/staff.png"]
 	bacuFrames := getFrames(bacuSheet, 25, 45, 6, 4)
 
-	hatSheet := Pictures["./images/hat.png"]
-	hatFrames := getFrames(hatSheet, 16, 32, 4, 0)
+	hatSheet := Pictures["./images/hatpro.png"]
+	hatFrames := getFrames(hatSheet, 25, 32, 4, 0)
 
 	deadSheet := Pictures["./images/dead.png"]
 	deadFrames := getFrames(deadSheet, 25, 29, 3, 4)
@@ -641,15 +844,38 @@ func NewPlayer(name string) Player {
 	deadHeadSheet := Pictures["./images/deadHead.png"]
 	deadHeadFrames := getFrames(deadHeadSheet, 16, 16, 4, 0)
 
+	p.bodySkin = skin
+	p.headSkin = Head
+	p.hatSkin = CoolHat
+	p.staffSkin = Staff
+
+	var bodySheet pixel.Picture
+	var bodyFrames []pixel.Rect
+	switch p.bodySkin {
+	case TuniDruida:
+		bodySheet = Pictures["./images/bodydruida.png"]
+		p.name.Color = colornames.Whitesmoke
+	case RedBody:
+		bodySheet = Pictures["./images/redBody.png"]
+		p.name.Color = colornames.Red
+	case BlueBody:
+		bodySheet = Pictures["./images/blueBody.png"]
+		p.name.Color = colornames.Blue
+	}
+
+	fmt.Fprintln(p.name, name)
+	bodyFrames = getFrames(bodySheet, 25, 45, 6, 4)
+
 	p.playerUpdate = &models.PlayerMsg{}
 	p.lastBodyFrame = time.Now()
 	p.lastDeadFrame = time.Now()
 	p.lastDrank = time.Now()
 	p.lastCast = time.Now()
-	p.bodyFrames = bodyFrames
+
 	p.headFrames = headFrames
 	p.bacuFrames = bacuFrames
 	p.hatFrames = hatFrames
+	p.bodyFrames = bodyFrames
 	p.bodyPic = &bodySheet
 	p.headPic = &headSheet
 	p.bacuPic = &bacuSheet
@@ -674,6 +900,7 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 	p.playerUpdate = &models.PlayerMsg{
 		ID:     s.ClientID,
 		Name:   p.sname,
+		Skin:   int(p.bodySkin),
 		X:      p.pos.X,
 		Y:      p.pos.Y,
 		Dir:    p.dir,
@@ -720,7 +947,7 @@ func (p *Player) Update() {
 		}
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 22)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.hatMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 24)))
+		p.hatMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 21)))
 		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
@@ -766,9 +993,20 @@ func (p *Player) Update() {
 		}
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 20)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
+	}
+}
+
+func (p *Player) Draw(win *pixelgl.Window) {
+	p.Update()
+	p.body.Draw(win, p.bodyMatrix)
+	p.head.Draw(win, p.headMatrix)
+	p.name.Draw(win, p.nameMatrix)
+	if !p.dead {
+		p.bacu.Draw(win, p.bodyMatrix)
+		p.hat.Draw(win, p.hatMatrix)
 	}
 }
 
@@ -840,10 +1078,10 @@ func (r *Resu) OnMe(click pixel.Vec) bool {
 type Tree struct {
 }
 type Forest struct {
-	Pic, SaucePic, GrassPic       pixel.Picture
-	Frames, GrassFrames           []pixel.Rect
-	SauceFrame                    pixel.Rect
-	Batch, SauceBatch, GrassBatch *pixel.Batch
+	Pic, SaucePic, GrassPic, FencePicH, FencePicV                              pixel.Picture
+	Frames, GrassFrames                                                        []pixel.Rect
+	SauceFrame, FenceFrameH, FenceFrameV                                       pixel.Rect
+	Batch, SauceBatch, GrassBatch, FenceBatchHTOP, FenceBatchHBOT, FenceBatchV *pixel.Batch
 }
 
 func NewForest() *Forest {
@@ -859,12 +1097,36 @@ func NewForest() *Forest {
 	grassBatch := pixel.NewBatch(&pixel.TrianglesData{}, grassSheet)
 	grassFrames := getFrames(grassSheet, 128, 128, 3, 3)
 
-	for x := 0; x <= 31; x++ {
-		for y := 0; y <= 31; y++ {
-			pos := pixel.V(float64(64+x*128), float64(y*128)-32)
+	vfenceSheet := Pictures["./images/verticalfence.png"]
+	vfenceBatch := pixel.NewBatch(&pixel.TrianglesData{}, vfenceSheet)
+	vfenceFrame := vfenceSheet.Bounds()
+	hfenceSheet := Pictures["./images/horizontalfence.png"]
+	hfenceBatchBot := pixel.NewBatch(&pixel.TrianglesData{}, hfenceSheet)
+	hfenceBatchTop := pixel.NewBatch(&pixel.TrianglesData{}, hfenceSheet)
+	hfenceFrame := hfenceSheet.Bounds()
+
+	for x := 0; x <= 32; x++ {
+		for y := 0; y <= 32; y++ {
+			pos := pixel.V(float64(x*128)-64, float64(y*128)-64)
 			bread := pixel.NewSprite(grassSheet, grassFrames[rand.Intn(len(grassFrames))])
 			bread.Draw(grassBatch, pixel.IM.Moved(pos))
 		}
+	}
+
+	for x := 0; x < 31; x++ {
+		top := pixel.V(float64(x*128)+64, 4000)
+		bottom := pixel.V(float64(x*128)+64, 0)
+		fence := pixel.NewSprite(hfenceSheet, hfenceFrame)
+		fence.Draw(hfenceBatchTop, pixel.IM.Moved(top))
+		fence.Draw(hfenceBatchBot, pixel.IM.Moved(bottom))
+	}
+
+	for x := 0; x < 31; x++ {
+		left := pixel.V(-9, float64(x*128)+64)
+		rigth := pixel.V(4010, float64(x*128)+64)
+		fence := pixel.NewSprite(vfenceSheet, vfenceFrame)
+		fence.Draw(vfenceBatch, pixel.IM.Moved(left))
+		fence.Draw(vfenceBatch, pixel.IM.Moved(rigth))
 	}
 
 	pathTreeLength := 22
@@ -928,36 +1190,54 @@ func NewForest() *Forest {
 		}
 	}
 	// Fill inside
-	arenaHeight := arenaTop - pathTop
-	for i := 0; i <= 20; i++ {
-		pos := pixel.V(1000, pathTop)
-		dirX := rand.Float64()
-		dirY := rand.Float64()
-		if dirX < .5 {
-			pos = pos.Add(pixel.V(dirX*2000, 0))
-		} else {
-			pos = pos.Sub(pixel.V(-dirX*2000, 0))
-		}
-		if dirY < .5 {
-			pos = pos.Add(pixel.V(0, dirY*arenaHeight))
-		} else {
-			pos = pos.Sub(pixel.V(0, -dirY*arenaHeight))
-		}
+
+	arenaTrees := []pixel.Vec{
+		pixel.V(1100, 3010),
+		pixel.V(1390, 2960),
+		pixel.V(1700, 2980),
+		pixel.V(2300, 3012),
+		pixel.V(2550, 3060),
+		pixel.V(2770, 2940),
+
+		pixel.V(1130, 3322),
+		pixel.V(1370, 3350),
+		pixel.V(1740, 3260),
+		pixel.V(2280, 3320),
+		pixel.V(2550, 3250),
+		pixel.V(2780, 3270),
+
+		pixel.V(1100, 3610),
+		pixel.V(1390, 3560),
+		pixel.V(1700, 3580),
+		pixel.V(1990, 3720),
+		pixel.V(2300, 3612),
+		pixel.V(2550, 3660),
+		pixel.V(2770, 3540),
+	}
+	for i := 0; i <= len(arenaTrees)-1; i++ {
+
 		tree := pixel.NewSprite(sauceSheet, sauceFrame)
 
-		tree.Draw(sauceBatch, pixel.IM.Moved(pos))
+		tree.Draw(sauceBatch, pixel.IM.Moved(arenaTrees[i]))
 	}
 
 	return &Forest{
-		Pic:         treeSheet,
-		Frames:      treeFrames,
-		Batch:       treeBatch,
-		SauceBatch:  sauceBatch,
-		SauceFrame:  sauceFrame,
-		SaucePic:    sauceSheet,
-		GrassBatch:  grassBatch,
-		GrassFrames: grassFrames,
-		GrassPic:    grassSheet,
+		Pic:            treeSheet,
+		Frames:         treeFrames,
+		Batch:          treeBatch,
+		SauceBatch:     sauceBatch,
+		SauceFrame:     sauceFrame,
+		SaucePic:       sauceSheet,
+		GrassBatch:     grassBatch,
+		GrassFrames:    grassFrames,
+		GrassPic:       grassSheet,
+		FenceBatchHTOP: hfenceBatchTop,
+		FenceBatchHBOT: hfenceBatchBot,
+		FenceFrameH:    hfenceFrame,
+		FencePicH:      hfenceSheet,
+		FenceBatchV:    vfenceBatch,
+		FenceFrameV:    vfenceFrame,
+		FencePicV:      vfenceSheet,
 	}
 }
 

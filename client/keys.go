@@ -43,6 +43,8 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		return key == keyPressed
 	}
 
+	tpTime := time.Now()
+
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
@@ -120,6 +122,10 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			player.drinkingHealthPotions = false
 		}
 
+		if win.JustPressed(pixelgl.Key1) {
+			cursor.SetSpellExploMode()
+		}
+
 		if win.JustPressed(pixelgl.Key2) {
 			cursor.SetSpellApocaMode()
 		}
@@ -128,10 +134,17 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			cursor.SetSpellDescaMode()
 		}
 
+		if win.JustPressed(pixelgl.Key4) {
+			cursor.SetSpellFireballMode()
+		}
+
 		if player.sname == "creagod" && win.Pressed(pixelgl.KeyLeftShift) {
 			if win.JustPressed(pixelgl.MouseButtonLeft) {
-				tppos := player.cam.Unproject(win.MousePosition())
-				player.pos.X, player.pos.Y = tppos.X, tppos.Y
+				if dt := time.Since(tpTime).Seconds(); dt > time.Second.Seconds()/6 {
+					tpTime = time.Now()
+					tppos := player.cam.Unproject(win.MousePosition())
+					player.pos.X, player.pos.Y = tppos.X, tppos.Y
+				}
 			}
 		}
 
