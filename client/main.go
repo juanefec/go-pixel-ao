@@ -425,16 +425,17 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			for key := range pd.CurrentAnimations {
 				p := pd.CurrentAnimations[key]
 				if sd.CurrentAnimations[i].caster != key && !p.dead && p.OnMe(sd.CurrentAnimations[i].pos) {
-					p.hp -= sd.Damage
-					if p.hp <= 0 {
-						p.hp = 0
-						p.dead = true
-					}
 					if i < len(sd.CurrentAnimations)-1 {
 						copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
 					}
 					sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
 					sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+
+					p.hp -= sd.Damage
+					if p.hp <= 0 {
+						p.hp = 0
+						p.dead = true
+					}
 					continue FBALLS
 				}
 			}
