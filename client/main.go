@@ -116,7 +116,7 @@ func run() {
 	playerInfo := NewPlayerInfo(&player, &otherPlayers)
 	resu := NewResu(pixel.V(2000, 2900))
 
-	socket := socket.NewSocket("25.9.191.221", 3333)
+	socket := socket.NewSocket("190.247.147.18", 33333)
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
@@ -379,6 +379,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 						Y:        mouse.Y,
 					}
 					paylaod, _ := json.Marshal(spell)
+					println(string(paylaod))
 					s.O <- models.NewMesg(models.Spell, paylaod)
 
 					sd.Caster.mp -= sd.ManaCost
@@ -412,6 +413,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 				Y:        mouse.Y,
 			}
 			paylaod, _ := json.Marshal(spell)
+			println(string(paylaod))
 			s.O <- models.NewMesg(models.Spell, paylaod)
 
 			vel := mouse.Sub(cam.Unproject(win.Bounds().Center()))
@@ -744,7 +746,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 
 				spell := models.SpellMsg{}
 				json.Unmarshal(msg.Payload, &spell)
-
+				println(string(msg.Payload))
 				newSpell := &Spell{
 					spellName:      &spell.Type,
 					frameNumber:    0.0,

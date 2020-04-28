@@ -17,7 +17,7 @@ import (
 
 func main() {
 
-	port := 3333
+	port := 33333
 
 	SocketServer(port)
 
@@ -103,8 +103,7 @@ func (c *Client) readPump() {
 		}
 		msg := models.UnmarshallMesg(data.Bytes())
 		switch msg.Type {
-		case models.Spell:
-		case models.Chat:
+		case models.Chat, models.Spell:
 			c.game.eventBroadcast <- BroadcastEvent{
 				Client:  c,
 				Event:   msg.Type,
