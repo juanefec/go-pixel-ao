@@ -3,12 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 	"sync"
 	"time"
 
+	"image/color"
 	_ "image/png"
 
 	"github.com/faiface/pixel"
@@ -23,14 +25,15 @@ import (
 )
 
 var (
-	PlayerSpeed = 185.0
-	Zoom        = 1.0
-	ZoomSpeed   = 1.1
-	fps         = 0
-	second      = time.Tick(time.Second)
-	MaxMana     = 2104
-	MaxHealth   = 307
-	ApocaDmg    = 190
+	PlayerSpeed   = 185.0
+	FireballSpeed = 290.0
+	Zoom          = 1.0
+	ZoomSpeed     = 1.1
+	fps           = 0
+	second        = time.Tick(time.Second)
+	MaxMana       = 2104
+	MaxHealth     = 307
+	ApocaDmg      = 190
 )
 var (
 	Newline      = []byte{'\n'}
@@ -47,6 +50,7 @@ var (
 	ApocaFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
 
 	Pictures map[string]pixel.Picture
+	Key      KeyConfig
 )
 
 const (
@@ -81,7 +85,19 @@ func run() {
 		"./images/explosion.png",
 		"./images/fireball.png",
 		"./images/creagod.png",
+		"./images/smallExplosion.png",
 	)
+	rawConfig, err := ioutil.ReadFile("./key-config.json")
+	if err != nil {
+		panic(err)
+	}
+
+	Key = KeyConfig{}
+	err = json.Unmarshal(rawConfig, &Key)
+	if err != nil {
+		panic(err)
+	}
+
 	ld, err := SetNameWindow()
 	if err != nil {
 		log.Panic(err)
@@ -92,6 +108,7 @@ func run() {
 		NewSpellData("desca", &player),
 		NewSpellData("explo", &player),
 		NewSpellData("fireball", &player),
+		NewSpellData("mini-explo", &player),
 	}
 	forest := NewForest()
 	buda := NewBuda(pixel.V(2000, 3400))
@@ -126,13 +143,13 @@ func run() {
 		forest.FenceBatchHTOP.Draw(win)
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
-		player.Draw(win)
+		player.Draw(win, socket)
 		buda.Draw(win)
 		forest.Batch.Draw(win)
 		forest.SauceBatch.Draw(win)
 		forest.FenceBatchV.Draw(win)
 		forest.FenceBatchHBOT.Draw(win)
-		spells.Draw(win, cam, socket, &otherPlayers, cursor)
+		spells.Draw(win, cam, socket, &otherPlayers, cursor, spells[4])
 		playerInfo.Draw(win, cam)
 		cursor.Draw(cam)
 		fps++
@@ -215,9 +232,9 @@ func (c *Cursor) Draw(cam pixel.Matrix) {
 }
 
 type PlayerInfo struct {
-	playersData                                *PlayersData
-	player                                     *Player
-	hdisplay, mdisplay, onsdisplay, posdisplay *text.Text
+	playersData                                        *PlayersData
+	player                                             *Player
+	hdisplay, mdisplay, onsdisplay, posdisplay, typing *text.Text
 }
 
 func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
@@ -229,6 +246,9 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 	pi.mdisplay = text.New(pixel.ZV, basicAtlas)
 	pi.mdisplay.Color = colornames.Whitesmoke
 	fmt.Fprintf(pi.mdisplay, "%v/%v", player.mp, MaxMana)
+	pi.typing = text.New(pixel.ZV, basicAtlas)
+	pi.typing.Color = colornames.Whitesmoke
+	fmt.Fprintf(pi.typing, "Typing...")
 	pi.onsdisplay = text.New(pixel.ZV, basicAtlas)
 	pi.onsdisplay.Color = colornames.Whitesmoke
 	fmt.Fprintf(pi.onsdisplay, "Online: %v", pd.Online+1)
@@ -285,21 +305,27 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	pi.mdisplay.Clear()
 	pi.onsdisplay.Clear()
 	pi.posdisplay.Clear()
+	pi.typing.Clear()
+
 	fmt.Fprintf(pi.hdisplay, "%v/%v", pi.player.hp, MaxHealth)
 	fmt.Fprintf(pi.mdisplay, "%v/%v", pi.player.mp, MaxMana)
 	fmt.Fprintf(pi.onsdisplay, "Online: %v", pi.playersData.Online+1)
 	fmt.Fprintf(pi.posdisplay, "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
+	fmt.Fprintf(pi.typing, "Typing...")
 	hmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(46, -15)))
 	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
 	onspos := infoPos.Add(pixel.V(-winSize.X+190, -20))
 	onsmatrix := pixel.IM.Moved(onspos).Scaled(onspos, 2)
 	pospos := infoPos.Add(pixel.V(-winSize.X+190, -50))
 	posmatrix := pixel.IM.Moved(pospos)
-
+	typingmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-80, -15)))
 	pi.hdisplay.Draw(win, hmatrix)
 	pi.mdisplay.Draw(win, mmatrix)
 	pi.onsdisplay.Draw(win, onsmatrix)
 	pi.posdisplay.Draw(win, posmatrix)
+	if pi.player.chat.chatting {
+		pi.typing.Draw(win, typingmatrix)
+	}
 }
 
 func Map(v, s1, st1, s2, st2 float64) float64 {
@@ -315,10 +341,10 @@ func Map(v, s1, st1, s2, st2 float64) float64 {
 
 type GameSpells []*SpellData
 
-func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData) {
 	for i := range gs {
 		gs[i].Batch.Clear()
-		gs[i].Update(win, cam, s, pd, cursor)
+		gs[i].Update(win, cam, s, pd, cursor, miniExplos)
 		gs[i].Batch.Draw(win)
 	}
 }
@@ -335,11 +361,10 @@ type SpellData struct {
 	CurrentAnimations []*Spell
 }
 
-func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
 	dtproj := time.Since(sd.Caster.lastCastProj).Seconds()
-	casted := false
-	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode {
+	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
 		if dt >= ((time.Second.Seconds() / 10) * 9) {
 			sd.Caster.lastCast = time.Now()
 			for key := range pd.CurrentAnimations {
@@ -368,13 +393,14 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 					newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 					sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 
-					casted = true
 					break
 				}
 			}
+			cursor.SetNormalMode()
 		}
-
-		if !casted && cursor.Mode == sd.SpellMode && cursor.Mode == SpellCastFireball && dtproj >= ((time.Second.Seconds()/10)*6) {
+	}
+	if win.JustPressed(pixelgl.Button(Key.FireB)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && SpellCastFireball == sd.SpellMode {
+		if dtproj >= ((time.Second.Seconds() / 10) * 6) {
 			sd.Caster.lastCastProj = time.Now()
 			mouse := cam.Unproject(win.MousePosition())
 			spell := models.SpellMsg{
@@ -404,10 +430,6 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			}
 			newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-			casted = true
-		}
-		if dt >= ((time.Second.Seconds() / 10) * 9) {
-			cursor.SetNormalMode()
 		}
 	}
 	if sd.SpellName == "fireball" {
@@ -430,7 +452,16 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 					}
 					sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
 					sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+					miniExplo := &Spell{
 
+						caster:      s.ClientID,
+						spellName:   &sd.SpellName,
+						step:        sd.Frames[0],
+						frameNumber: 0.0,
+						matrix:      &p.bodyMatrix,
+						last:        time.Now(),
+					}
+					miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
 					p.hp -= sd.Damage
 					if p.hp <= 0 {
 						p.hp = 0
@@ -450,6 +481,16 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 				}
 				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
 				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+				miniExplo := &Spell{
+
+					caster:      s.ClientID,
+					spellName:   &sd.SpellName,
+					step:        sd.Frames[0],
+					frameNumber: 0.0,
+					matrix:      &sd.Caster.bodyMatrix,
+					last:        time.Now(),
+				}
+				miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
 				continue
 			}
 			sd.CurrentAnimations[i].step = next
@@ -493,7 +534,6 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastApoca
 		manaCost = 1000
 		damage = 180
-
 		break
 	case "desca":
 		sheet = Pictures["./images/desca.png"]
@@ -515,8 +555,16 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 24, 24, 7, 0)
 		mode = SpellCastFireball
-		manaCost = 300
-		damage = 80
+		manaCost = 160
+		damage = 90
+	case "mini-explo":
+		sheet = Pictures["./images/smallExplosion.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 48, 48, 17, 0)
+		mode = Normal
+		manaCost = 0
+		damage = 0
+		speed = 16
 	}
 
 	return &SpellData{
@@ -565,7 +613,7 @@ func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect) (pixel.Rect, bool) {
 	a.frameNumber += 21 * dt
 	i := int(a.frameNumber)
 	if i <= len(spellFrames)-1 {
-		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(1.4)
+		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(dt * FireballSpeed)
 		a.pos = a.pos.Add(vel)
 		(*a.matrix) = a.matrix.Moved(vel)
 		return spellFrames[i], false
@@ -740,6 +788,10 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 					}
 				}
+			case models.Chat:
+				chatMsg := models.ChatMsg{}
+				json.Unmarshal(msg.Payload, &chatMsg)
+				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.Message)
 			case models.Disconect:
 				pd.Online--
 				m := models.DisconectMsg{}
@@ -760,6 +812,7 @@ func (pd *PlayersData) Draw(win *pixelgl.Window) {
 		pd.AnimationsMutex.RUnlock()
 		pd.Skins.DrawToBatch(p)
 		p.name.Draw(win, p.nameMatrix)
+		p.chat.Draw(win, p.pos)
 		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
@@ -777,6 +830,7 @@ type Player struct {
 	head, body, bacu, hat                                                     *pixel.Sprite
 	hp, mp                                                                    int // health/mana points
 
+	chat                  Chat
 	pos                   pixel.Vec
 	name                  *text.Text
 	sname                 string
@@ -794,11 +848,86 @@ type Player struct {
 	dead                  bool
 }
 
+type Chat struct {
+	msgTimeout      time.Time
+	chatting        bool
+	sent, writing   *text.Text
+	ssent, swriting string
+	scolor, wcolor  color.RGBA
+	matrix          pixel.Matrix
+}
+
+func (c *Chat) WriteSent(message string) {
+	c.ssent = message
+	c.sent.WriteString(c.ssent)
+	c.msgTimeout = time.Now()
+}
+
+func (c *Chat) Send(s *socket.Socket) {
+	c.ssent = c.swriting
+	c.sent.WriteString(c.ssent)
+	c.msgTimeout = time.Now()
+	chatMsg := &models.ChatMsg{
+		ID:      s.ClientID,
+		Message: c.ssent,
+	}
+	chatPayload, err := json.Marshal(chatMsg)
+	if err != nil {
+		return
+	}
+	s.O <- models.NewMesg(models.Chat, chatPayload)
+	c.swriting = ""
+	c.writing.Clear()
+}
+
+func (c *Chat) Write(win *pixelgl.Window) {
+	c.writing.WriteString(win.Typed())
+	if win.Typed() != "" {
+		c.swriting = fmt.Sprint(c.swriting, win.Typed())
+	}
+	if win.JustPressed(pixelgl.KeyBackspace) || win.Repeated(pixelgl.KeyBackspace) {
+		if c.swriting != "" {
+			c.swriting = c.swriting[:len(c.swriting)-1]
+			c.writing.Clear()
+			c.writing.WriteString(c.swriting)
+		}
+	}
+}
+
+func (c *Chat) Draw(win *pixelgl.Window, pos pixel.Vec) {
+
+	if c.chatting {
+		c.writing.Clear()
+		c.writing.WriteString(c.swriting)
+		c.writing.Draw(win, pixel.IM.Moved(pos.Sub(c.writing.Bounds().Center().Floor()).Add(pixel.V(0, 46))))
+		return
+	}
+	dt := time.Since(c.msgTimeout).Seconds()
+	if dt < time.Second.Seconds()*5 {
+		c.sent.Clear()
+		c.sent.WriteString(c.ssent)
+		c.sent.Draw(win, pixel.IM.Moved(pos.Sub(c.sent.Bounds().Center().Floor()).Add(pixel.V(0, 46))))
+	} else {
+		c.sent.Clear()
+		c.ssent = ""
+	}
+}
+
 func NewPlayer(name string, skin SkinType) Player {
 	p := &Player{}
 	p.sname = name
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	p.name = text.New(pixel.V(-28, 0), basicAtlas)
+
+	p.chat = Chat{
+		msgTimeout: time.Now(),
+		sent:       text.New(pixel.V(24, 0), basicAtlas),
+		writing:    text.New(pixel.V(24, 0), basicAtlas),
+		ssent:      "",
+		swriting:   "",
+	}
+	p.chat.sent.Color = colornames.White
+	p.chat.writing.Color = colornames.Blanchedalmond
 
 	headSheet := Pictures["./images/heads.png"]
 	headFrames := getFrames(headSheet, 16, 16, 4, 0)
@@ -924,7 +1053,7 @@ func (p *Player) Update() {
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 22)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
 		p.hatMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 21)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center()).Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
 		p.bacu = pixel.NewSprite(*p.bacuPic, p.bacuFrame)
@@ -969,14 +1098,24 @@ func (p *Player) Update() {
 		}
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 20)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center()).Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 	}
 }
 
-func (p *Player) Draw(win *pixelgl.Window) {
+func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 	p.Update()
+	if win.JustPressed(pixelgl.KeyEnter) {
+		p.chat.chatting = !p.chat.chatting
+		if !p.chat.chatting {
+			p.chat.Send(s)
+		}
+	}
+	if p.chat.chatting {
+		p.chat.Write(win)
+	}
+	p.chat.Draw(win, p.pos)
 	p.body.Draw(win, p.bodyMatrix)
 	p.head.Draw(win, p.headMatrix)
 	p.name.Draw(win, p.nameMatrix)

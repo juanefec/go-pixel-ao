@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"time"
 
 	"github.com/faiface/pixel/pixelgl"
@@ -41,18 +39,6 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		KeyLeft:  -1,
 		KeyRight: -1,
 	}
-	rawConfig, err := ioutil.ReadFile("./key-config.json")
-	if err != nil {
-		panic(err)
-	}
-
-	key := KeyConfig{}
-	err = json.Unmarshal(rawConfig, &key)
-	if err != nil {
-		panic(err)
-	}
-
-	var ()
 
 	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
 		var key pixelgl.Button
@@ -71,94 +57,92 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
+		if !player.chat.chatting {
 
-		if win.Pressed(KeyLeft) {
-			if latestPressed(KeyLeft, timeMap) {
-				player.moving = true
-				player.dir = "left"
-				if player.pos.X > Left {
-					player.pos.X -= PlayerSpeed * dt
-				} else {
-					player.moving = false
+			if win.Pressed(KeyLeft) {
+				if latestPressed(KeyLeft, timeMap) {
+					player.moving = true
+					player.dir = "left"
+					if player.pos.X > Left {
+						player.pos.X -= PlayerSpeed * dt
+					} else {
+						player.moving = false
+					}
 				}
+				timeMap[KeyLeft]++
+			} else {
+				timeMap[KeyLeft] = -1
 			}
-			timeMap[KeyLeft]++
-		} else {
-			timeMap[KeyLeft] = -1
-		}
 
-		if win.Pressed(KeyRight) {
-			if latestPressed(KeyRight, timeMap) {
-				player.moving = true
-				player.dir = "right"
-				if player.pos.X < Right {
-					player.pos.X += PlayerSpeed * dt
-				} else {
-					player.moving = false
+			if win.Pressed(KeyRight) {
+				if latestPressed(KeyRight, timeMap) {
+					player.moving = true
+					player.dir = "right"
+					if player.pos.X < Right {
+						player.pos.X += PlayerSpeed * dt
+					} else {
+						player.moving = false
+					}
 				}
+				timeMap[KeyRight]++
+			} else {
+				timeMap[KeyRight] = -1
 			}
-			timeMap[KeyRight]++
-		} else {
-			timeMap[KeyRight] = -1
-		}
 
-		if win.Pressed(KeyDown) {
-			if latestPressed(KeyDown, timeMap) {
-				player.moving = true
-				player.dir = "down"
-				if player.pos.Y > Bottom {
-					player.pos.Y -= PlayerSpeed * dt
-				} else {
-					player.moving = false
+			if win.Pressed(KeyDown) {
+				if latestPressed(KeyDown, timeMap) {
+					player.moving = true
+					player.dir = "down"
+					if player.pos.Y > Bottom {
+						player.pos.Y -= PlayerSpeed * dt
+					} else {
+						player.moving = false
+					}
 				}
+				timeMap[KeyDown]++
+
+			} else {
+				timeMap[KeyDown] = -1
 			}
-			timeMap[KeyDown]++
 
-		} else {
-			timeMap[KeyDown] = -1
-		}
-
-		if win.Pressed(KeyUp) {
-			if latestPressed(KeyUp, timeMap) {
-				player.moving = true
-				player.dir = "up"
-				if player.pos.Y < Top {
-					player.pos.Y += PlayerSpeed * dt
-				} else {
-					player.moving = false
+			if win.Pressed(KeyUp) {
+				if latestPressed(KeyUp, timeMap) {
+					player.moving = true
+					player.dir = "up"
+					if player.pos.Y < Top {
+						player.pos.Y += PlayerSpeed * dt
+					} else {
+						player.moving = false
+					}
 				}
+				timeMap[KeyUp]++
+			} else {
+				timeMap[KeyUp] = -1
 			}
-			timeMap[KeyUp]++
-		} else {
-			timeMap[KeyUp] = -1
-		}
 
-		if win.Pressed(pixelgl.Button(key.Azules)) {
+			if win.JustPressed(pixelgl.Button(Key.Explo)) {
+				cursor.SetSpellExploMode()
+			}
+
+			if win.JustPressed(pixelgl.Button(Key.Apoca)) {
+				cursor.SetSpellApocaMode()
+			}
+
+			if win.JustPressed(pixelgl.Button(Key.Desca)) {
+				cursor.SetSpellDescaMode()
+			}
+
+		}
+		if win.Pressed(pixelgl.Button(Key.Azules)) {
 			player.drinkingManaPotions = true
 		} else {
 			player.drinkingManaPotions = false
 		}
 
-		if win.Pressed(pixelgl.Button(key.Rojas)) {
+		if win.Pressed(pixelgl.Button(Key.Rojas)) {
 			player.drinkingHealthPotions = true
 		} else {
 			player.drinkingHealthPotions = false
-		}
-
-		if win.JustPressed(pixelgl.Button(key.Explo)) {
-			cursor.SetSpellExploMode()
-		}
-
-		if win.JustPressed(pixelgl.Button(key.Apoca)) {
-			cursor.SetSpellApocaMode()
-		}
-
-		if win.JustPressed(pixelgl.Button(key.Desca)) {
-			cursor.SetSpellDescaMode()
-		}
-
-		if win.JustPressed(pixelgl.Button(key.FireB)) {
-			cursor.SetSpellFireballMode()
 		}
 
 		if player.sname == "creagod" && win.Pressed(pixelgl.KeyLeftShift) {

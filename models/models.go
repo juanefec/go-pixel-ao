@@ -17,11 +17,12 @@ const (
 	UpdateClient Event = iota
 	UpdateServer
 	Spell
+	Chat
 	Disconect
 )
 
 func (d Event) String() string {
-	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Disconect"}[d]
+	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Chat", "Disconect"}[d]
 }
 
 type Mesg struct {
@@ -68,4 +69,10 @@ type PlayerMsg struct {
 	Dir    string      `json:"dir"`
 	Moving bool        `json:"moving"`
 	Dead   bool        `json:"dead"`
+}
+
+type ChatMsg struct {
+	ID      ksuid.KSUID `json:"id"`
+	Name    string      `json:"name"`
+	Message string      `json:"message"`
 }

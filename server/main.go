@@ -104,6 +104,7 @@ func (c *Client) readPump() {
 		msg := models.UnmarshallMesg(data.Bytes())
 		switch msg.Type {
 		case models.Spell:
+		case models.Chat:
 			c.game.eventBroadcast <- BroadcastEvent{
 				Client:  c,
 				Event:   msg.Type,
