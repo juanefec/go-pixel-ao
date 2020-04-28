@@ -28,7 +28,7 @@ var (
 	PlayerSpeed   = 185.0
 	FireballSpeed = 290.0
 	Zoom          = 1.0
-	ZoomSpeed     = 1.1
+	ZoomSpeed     = 1.01
 	fps           = 0
 	second        = time.Tick(time.Second)
 	MaxMana       = 2104
@@ -73,7 +73,7 @@ func run() {
 		"./images/curaHead.png",
 		"./images/buda.png",
 		"./images/sauce.png",
-		"./images/grass.png",
+		"./images/newGrass.png",
 		"./images/staff.png",
 		"./images/hatpro.png",
 		"./images/horizontalfence.png",
@@ -1194,8 +1194,8 @@ type Tree struct {
 }
 type Forest struct {
 	Pic, SaucePic, GrassPic, FencePicH, FencePicV                              pixel.Picture
-	Frames, GrassFrames                                                        []pixel.Rect
-	SauceFrame, FenceFrameH, FenceFrameV                                       pixel.Rect
+	Frames                                                                     []pixel.Rect
+	SauceFrame, FenceFrameH, FenceFrameV, GrassFrames                          pixel.Rect
 	Batch, SauceBatch, GrassBatch, FenceBatchHTOP, FenceBatchHBOT, FenceBatchV *pixel.Batch
 }
 
@@ -1208,9 +1208,9 @@ func NewForest() *Forest {
 	sauceBatch := pixel.NewBatch(&pixel.TrianglesData{}, sauceSheet)
 	sauceFrame := sauceSheet.Bounds()
 
-	grassSheet := Pictures["./images/grass.png"]
+	grassSheet := Pictures["./images/newGrass.png"]
 	grassBatch := pixel.NewBatch(&pixel.TrianglesData{}, grassSheet)
-	grassFrames := getFrames(grassSheet, 128, 128, 3, 3)
+	grassFrames := grassSheet.Bounds()
 
 	vfenceSheet := Pictures["./images/verticalfence.png"]
 	vfenceBatch := pixel.NewBatch(&pixel.TrianglesData{}, vfenceSheet)
@@ -1220,10 +1220,23 @@ func NewForest() *Forest {
 	hfenceBatchTop := pixel.NewBatch(&pixel.TrianglesData{}, hfenceSheet)
 	hfenceFrame := hfenceSheet.Bounds()
 
-	for x := 0; x <= 32; x++ {
-		for y := 0; y <= 32; y++ {
-			pos := pixel.V(float64(x*128)-64, float64(y*128)-64)
-			bread := pixel.NewSprite(grassSheet, grassFrames[rand.Intn(len(grassFrames))])
+	// frameNumber := 0
+	// for x := 0; x <= 32; x++ {
+	// 	for y := 0; y <= 32; y++ {
+	// 		pos := pixel.V(float64(x*128)-64, float64(y*128)-64)
+	// 		bread := pixel.NewSprite(grassSheet, grassFrames[frameNumber])
+	// 		bread.Draw(grassBatch, pixel.IM.Moved(pos))
+	// 		frameNumber++
+	// 		if frameNumber >= len(grassFrames) {
+	// 			frameNumber = 0
+	// 		}
+	// 	}
+	// }
+
+	for x := 0; x <= 13; x++ {
+		for y := 0; y <= 13; y++ {
+			pos := pixel.V(float64(x*320)-160, float64(y*320)-160)
+			bread := pixel.NewSprite(grassSheet, grassFrames)
 			bread.Draw(grassBatch, pixel.IM.Moved(pos))
 		}
 	}

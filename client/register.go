@@ -46,7 +46,7 @@ func SetNameWindow() (LoginData, error) {
 
 	cfg := pixelgl.WindowConfig{
 		Title:  "Creative AO | Login",
-		Bounds: pixel.R(0, 0, 300, 500),
+		Bounds: pixel.R(0, 0, 800, 500),
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -106,7 +106,7 @@ func SetNameWindow() (LoginData, error) {
 			bframe.Rectangle(0)
 			bframe.Draw(win)
 			bPos := pixel.V(70, 160)
-			bIcon.Draw(win, pixel.IM.Moved(bPos).Scaled(bPos, 2))
+			bIcon.Draw(win, pixel.IM.Moved(bPos).Scaled(bPos, 1.5))
 			rPos := pixel.V(230, 160)
 			rIcon.Draw(win, pixel.IM.Moved(rPos).Scaled(rPos, 2))
 			choose.Draw(win, pixel.IM.Moved(win.Bounds().Center().Sub(choose.Bounds().Center()).Add(pixel.V(0, 0))).Scaled(win.Bounds().Center(), 2))
