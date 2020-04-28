@@ -111,7 +111,7 @@ func run() {
 		NewSpellData("mini-explo", &player),
 	}
 	forest := NewForest()
-	buda := NewBuda(pixel.V(2000, 3400))
+	//buda := NewBuda(pixel.V(2000, 3400))
 	otherPlayers := NewPlayersData()
 	playerInfo := NewPlayerInfo(&player, &otherPlayers)
 	resu := NewResu(pixel.V(2000, 2900))
@@ -144,7 +144,7 @@ func run() {
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
 		player.Draw(win, socket)
-		buda.Draw(win)
+		//buda.Draw(win)
 		forest.Batch.Draw(win)
 		forest.SauceBatch.Draw(win)
 		forest.FenceBatchV.Draw(win)
