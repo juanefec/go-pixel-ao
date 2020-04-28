@@ -116,7 +116,7 @@ func run() {
 	playerInfo := NewPlayerInfo(&player, &otherPlayers)
 	resu := NewResu(pixel.V(2000, 2900))
 
-	socket := socket.NewSocket("25.9.191.221", 3333)
+	socket := socket.NewSocket("190.247.147.18", 33333)
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
