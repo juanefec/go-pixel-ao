@@ -132,6 +132,13 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				cursor.SetSpellDescaMode()
 			}
 
+		} else {
+			timeMap = map[pixelgl.Button]int{
+				KeyUp:    -1,
+				KeyDown:  -1,
+				KeyLeft:  -1,
+				KeyRight: -1,
+			}
 		}
 		if win.Pressed(pixelgl.Button(Key.Azules)) {
 			player.drinkingManaPotions = true
