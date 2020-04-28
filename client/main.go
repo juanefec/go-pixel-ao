@@ -71,7 +71,6 @@ func run() {
 		"./images/desca.png",
 		"./images/curaBody.png",
 		"./images/curaHead.png",
-		"./images/buda.png",
 		"./images/sauce.png",
 		"./images/newGrass.png",
 		"./images/staff.png",
