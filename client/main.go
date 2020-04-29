@@ -635,6 +635,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 0
 		damage = 0
 		speed = 25
+		scalef = 1.5
 	}
 
 	return &SpellData{
