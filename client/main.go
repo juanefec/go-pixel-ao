@@ -27,25 +27,22 @@ import (
 var (
 	PlayerSpeed   = 185.0
 	FireballSpeed = 290.0
-	Zoom          = 1.0
-	ZoomSpeed     = 1.01
-	fps           = 0
+	Zoom          = 2.0
+	ZoomSpeed     = 1.1
 	second        = time.Tick(time.Second)
 	MaxMana       = 2104
 	MaxHealth     = 307
-	ApocaDmg      = 190
 )
 var (
-	Newline      = []byte{'\n'}
-	TreeQuantity = 300
-	BodyUp       = []int{12, 13, 14, 15, 16, 17}
-	BodyDown     = []int{18, 19, 20, 21, 22, 23}
-	BodyLeft     = []int{6, 7, 8, 9, 10}
-	BodyRight    = []int{0, 1, 2, 3, 4}
-	DeadUp       = []int{6, 7, 8}
-	DeadDown     = []int{9, 10, 11}
-	DeadLeft     = []int{3, 4, 5}
-	DeadRight    = []int{0, 1, 2}
+	Newline   = []byte{'\n'}
+	BodyUp    = []int{12, 13, 14, 15, 16, 17}
+	BodyDown  = []int{18, 19, 20, 21, 22, 23}
+	BodyLeft  = []int{6, 7, 8, 9, 10}
+	BodyRight = []int{0, 1, 2, 3, 4}
+	DeadUp    = []int{6, 7, 8}
+	DeadDown  = []int{9, 10, 11}
+	DeadLeft  = []int{3, 4, 5}
+	DeadRight = []int{0, 1, 2}
 
 	ApocaFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
 
@@ -64,6 +61,7 @@ func run() {
 	Pictures = loadPictures(
 		"./images/apocas.png",
 		"./images/bodydruida.png",
+		"./images/bodydruidaIcon.png",
 		"./images/heads.png",
 		"./images/trees.png",
 		"./images/dead.png",
@@ -71,7 +69,7 @@ func run() {
 		"./images/desca.png",
 		"./images/curaBody.png",
 		"./images/curaHead.png",
-		"./images/sauce.png",
+		"./images/arbolmuerto.png",
 		"./images/newGrass.png",
 		"./images/staff.png",
 		"./images/hatpro.png",
@@ -85,6 +83,14 @@ func run() {
 		"./images/fireball.png",
 		"./images/creagod.png",
 		"./images/smallExplosion.png",
+		"./images/talltree.png",
+		"./images/tallnoleafstree.png",
+		"./images/darkopshit.png",
+		"./images/darkopshitIcon.png",
+		"./images/placaazul.png",
+		"./images/placaazulIcon.png",
+		"./images/penumbras.png",
+		"./images/penumbrasIcon.png",
 	)
 	rawConfig, err := ioutil.ReadFile("./key-config.json")
 	if err != nil {
@@ -101,7 +107,7 @@ func run() {
 	if err != nil {
 		log.Panic(err)
 	}
-	player := NewPlayer(ld.Name, ld.Side)
+	player := NewPlayer(ld.Name, ld.Skin)
 	spells := GameSpells{
 		NewSpellData("apoca", &player),
 		NewSpellData("desca", &player),
@@ -119,8 +125,9 @@ func run() {
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title:  "Creative AO",
-		Bounds: pixel.R(0, 0, 850, 650),
+		Title:   "Creative AO",
+		Monitor: pixelgl.PrimaryMonitor(),
+		Bounds:  pixel.R(0, 0, 1920, 1080),
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -130,7 +137,7 @@ func run() {
 	cursor := NewCursor(win)
 	go keyInputs(win, &player, cursor)
 	go GameUpdate(socket, &otherPlayers, &player, spells...)
-
+	fps := 0
 	for !win.Closed() {
 		win.Clear(colornames.Black)
 		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
@@ -145,7 +152,7 @@ func run() {
 		player.Draw(win, socket)
 		//buda.Draw(win)
 		forest.Batch.Draw(win)
-		forest.SauceBatch.Draw(win)
+		forest.Trees.Draw(win)
 		forest.FenceBatchV.Draw(win)
 		forest.FenceBatchHBOT.Draw(win)
 		spells.Draw(win, cam, socket, &otherPlayers, cursor, spells[4])
@@ -156,7 +163,7 @@ func run() {
 		select {
 		case <-second:
 
-			win.SetTitle(fmt.Sprintf("%s | FPS: %d", cfg.Title, fps))
+			playerInfo.nfps = fps
 			fps = 0
 		default:
 		}
@@ -231,9 +238,10 @@ func (c *Cursor) Draw(cam pixel.Matrix) {
 }
 
 type PlayerInfo struct {
-	playersData                                        *PlayersData
-	player                                             *Player
-	hdisplay, mdisplay, onsdisplay, posdisplay, typing *text.Text
+	playersData                                             *PlayersData
+	player                                                  *Player
+	hdisplay, mdisplay, onsdisplay, posdisplay, typing, fps *text.Text
+	nfps                                                    int
 }
 
 func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
@@ -254,6 +262,9 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 	pi.posdisplay = text.New(pixel.ZV, basicAtlas)
 	pi.posdisplay.Color = colornames.Whitesmoke
 	fmt.Fprintf(pi.posdisplay, "X: %v\nY: %v", player.pos.X, player.pos.Y)
+	pi.fps = text.New(pixel.ZV, basicAtlas)
+	pi.fps.Color = colornames.Whitesmoke
+	fmt.Fprintf(pi.fps, "FPS: %v", 0)
 	pi.player = player
 	pi.playersData = pd
 	return &pi
@@ -261,7 +272,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 
 func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	winSize := win.Bounds().Max
-	infoPos := cam.Unproject(winSize.Add(pixel.V(-170, -10)))
+	infoPos := cam.Unproject(winSize.Add(pixel.V(-340, -10)))
 	info := imdraw.New(nil)
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape
@@ -305,19 +316,24 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	pi.onsdisplay.Clear()
 	pi.posdisplay.Clear()
 	pi.typing.Clear()
+	pi.fps.Clear()
 
 	fmt.Fprintf(pi.hdisplay, "%v/%v", pi.player.hp, MaxHealth)
 	fmt.Fprintf(pi.mdisplay, "%v/%v", pi.player.mp, MaxMana)
 	fmt.Fprintf(pi.onsdisplay, "Online: %v", pi.playersData.Online+1)
 	fmt.Fprintf(pi.posdisplay, "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
 	fmt.Fprintf(pi.typing, "Typing...")
+	fmt.Fprintf(pi.fps, "FPS: %v", pi.nfps)
+
 	hmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(46, -15)))
 	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
-	onspos := infoPos.Add(pixel.V(-winSize.X+190, -20))
+	onspos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -20))
 	onsmatrix := pixel.IM.Moved(onspos).Scaled(onspos, 2)
-	pospos := infoPos.Add(pixel.V(-winSize.X+190, -50))
+	pospos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -50))
 	posmatrix := pixel.IM.Moved(pospos)
 	typingmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-80, -15)))
+
+	pi.fps.Draw(win, posmatrix.Moved(pixel.V(0, -30)))
 	pi.hdisplay.Draw(win, hmatrix)
 	pi.mdisplay.Draw(win, mmatrix)
 	pi.onsdisplay.Draw(win, onsmatrix)
@@ -363,7 +379,7 @@ type SpellData struct {
 func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
 	dtproj := time.Since(sd.Caster.lastCastProj).Seconds()
-	if win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
+	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
 		if dt >= ((time.Second.Seconds() / 10) * 9) {
 			sd.Caster.lastCast = time.Now()
 			for key := range pd.CurrentAnimations {
@@ -398,7 +414,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			cursor.SetNormalMode()
 		}
 	}
-	if win.JustPressed(pixelgl.Button(Key.FireB)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && SpellCastFireball == sd.SpellMode {
+	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.FireB)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && SpellCastFireball == sd.SpellMode {
 		if dtproj >= ((time.Second.Seconds() / 10) * 6) {
 			sd.Caster.lastCastProj = time.Now()
 			mouse := cam.Unproject(win.MousePosition())
@@ -564,6 +580,21 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 0
 		damage = 0
 		speed = 16
+		// case "iceball":
+		// 	sheet = Pictures["./images/fireball.png"]
+		// 	batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		// 	frames = getFrames(sheet, 24, 24, 7, 0)
+		// 	mode = SpellCastFireball
+		// 	manaCost = 160
+		// 	damage = 90
+		// case "mini-explo":
+		// 	sheet = Pictures["./images/smallExplosion.png"]
+		// 	batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		// 	frames = getFrames(sheet, 48, 48, 17, 0)
+		// 	mode = Normal
+		// 	manaCost = 0
+		// 	damage = 0
+		// 	speed = 16
 	}
 
 	return &SpellData{
@@ -640,6 +671,9 @@ const (
 	TuniDruida = iota
 	RedBody
 	BlueBody
+	DarkMasterBody
+	BlueArmorBody
+	TwilightBody
 	GodBody
 	Head
 	CoolHat
@@ -649,16 +683,6 @@ const (
 )
 
 type Skins []*Skin
-
-func (s Skins) Load(imagPath string, t SkinType, w, h, qw, qh float64) {
-	sheet := Pictures[imagPath]
-	skin := &Skin{
-		Pic:    &sheet,
-		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, sheet),
-		Frames: getFrames(sheet, w, h, qw, qh),
-	}
-	s[t] = skin
-}
 
 func (s Skins) BatchClear() {
 	for i := range s {
@@ -684,6 +708,16 @@ func (s Skins) Draw(win *pixelgl.Window) {
 	}
 }
 
+func (s Skins) Load(imagPath string, t SkinType, w, h, qw, qh float64) {
+	sheet := Pictures[imagPath]
+	skin := &Skin{
+		Pic:    &sheet,
+		Batch:  pixel.NewBatch(&pixel.TrianglesData{}, sheet),
+		Frames: getFrames(sheet, w, h, qw, qh),
+	}
+	s[t] = skin
+}
+
 type Skin struct {
 	Frames []pixel.Rect
 	Pic    *pixel.Picture
@@ -692,12 +726,15 @@ type Skin struct {
 
 func NewPlayersData() PlayersData {
 	pd := PlayersData{}
-	pd.SkinsLen = 9
+	pd.SkinsLen = 12
 	pd.Skins = make([]*Skin, pd.SkinsLen)
 
 	pd.Skins.Load("./images/bodydruida.png", TuniDruida, 25, 45, 6, 4)
 	pd.Skins.Load("./images/redBody.png", RedBody, 25, 45, 6, 4)
 	pd.Skins.Load("./images/blueBody.png", BlueBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/darkopshit.png", DarkMasterBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/placaazul.png", BlueArmorBody, 25, 45, 6, 4)
+	pd.Skins.Load("./images/penumbras.png", TwilightBody, 25, 45, 6, 4)
 	pd.Skins.Load("./images/creagod.png", GodBody, 25, 45, 6, 4)
 	pd.Skins.Load("./images/heads.png", Head, 16, 16, 4, 0)
 	pd.Skins.Load("./images/hatpro.png", CoolHat, 25, 32, 4, 0)
@@ -710,6 +747,12 @@ func NewPlayersData() PlayersData {
 	pd.Online = 0
 	return pd
 }
+
+type Game struct {
+	p  *Player
+	pp *PlayersData
+}
+
 func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData) {
 	for {
 		select {
@@ -926,7 +969,7 @@ func NewPlayer(name string, skin SkinType) Player {
 		swriting:   "",
 	}
 	p.chat.sent.Color = colornames.White
-	p.chat.writing.Color = colornames.Blanchedalmond
+	p.chat.writing.Color = colornames.Burlywood
 
 	headSheet := Pictures["./images/heads.png"]
 	headFrames := getFrames(headSheet, 16, 16, 4, 0)
@@ -959,11 +1002,20 @@ func NewPlayer(name string, skin SkinType) Player {
 		p.name.Color = colornames.Red
 	case BlueBody:
 		bodySheet = Pictures["./images/blueBody.png"]
+		p.name.Color = colornames.Darkcyan
+	case DarkMasterBody:
+		bodySheet = Pictures["./images/darkopshit.png"]
+		p.name.Color = colornames.Black
+	case BlueArmorBody:
+		bodySheet = Pictures["./images/placaazul.png"]
 		p.name.Color = colornames.Blue
+	case TwilightBody:
+		bodySheet = Pictures["./images/penumbras.png"]
+		p.name.Color = colornames.Darkgoldenrod
 
 	case GodBody:
 		bodySheet = Pictures["./images/creagod.png"]
-		p.name.Color = colornames.Lightseagreen
+		p.name.Color = colornames.Turquoise
 
 	}
 
@@ -1189,13 +1241,56 @@ func (r *Resu) OnMe(click pixel.Vec) bool {
 	return b
 }
 
+type TreeType int
+
+const (
+	ZombieTree TreeType = iota
+	TallTree
+	NoLeafsTallTree
+)
+
 type Tree struct {
+	Frame pixel.Rect
+	Batch *pixel.Batch
+	Pic   *pixel.Picture
 }
+
+type Trees []*Tree
+
+func (s Trees) Load(kind TreeType, imagPath string) {
+	sheet := Pictures[imagPath]
+	tree := &Tree{
+		Pic:   &sheet,
+		Batch: pixel.NewBatch(&pixel.TrianglesData{}, sheet),
+		Frame: sheet.Bounds(),
+	}
+	s[kind] = tree
+}
+
+func (s Trees) Draw(win *pixelgl.Window) {
+	for i := range s {
+		s[i].Batch.Draw(win)
+	}
+}
+
 type Forest struct {
-	Pic, SaucePic, GrassPic, FencePicH, FencePicV                              pixel.Picture
-	Frames                                                                     []pixel.Rect
-	SauceFrame, FenceFrameH, FenceFrameV, GrassFrames                          pixel.Rect
-	Batch, SauceBatch, GrassBatch, FenceBatchHTOP, FenceBatchHBOT, FenceBatchV *pixel.Batch
+	Pic, GrassPic, FencePicH, FencePicV                            pixel.Picture
+	Frames                                                         []pixel.Rect
+	FenceFrameH, FenceFrameV, GrassFrames                          pixel.Rect
+	Batch, GrassBatch, FenceBatchHTOP, FenceBatchHBOT, FenceBatchV *pixel.Batch
+	Trees                                                          Trees
+}
+
+func generateRandomPoss(c, bot, top, left, rigth int64) []pixel.Vec {
+	poss := make([]pixel.Vec, c)
+	rand.Seed(c + top + bot + left + rigth)
+	for i := range poss {
+		poss[i] = pixel.V(random(left, rigth), random(bot, top))
+	}
+	return poss
+}
+func random(min, max int64) float64 {
+	return float64(rand.Int63n(max-min) + min)
 }
 
 func NewForest() *Forest {
@@ -1203,9 +1298,10 @@ func NewForest() *Forest {
 	treeBatch := pixel.NewBatch(&pixel.TrianglesData{}, treeSheet)
 	treeFrames := getFrames(treeSheet, 32, 32, 3, 3)
 
-	sauceSheet := Pictures["./images/sauce.png"]
-	sauceBatch := pixel.NewBatch(&pixel.TrianglesData{}, sauceSheet)
-	sauceFrame := sauceSheet.Bounds()
+	trees := make(Trees, 3)
+	trees.Load(ZombieTree, "./images/arbolmuerto.png")
+	trees.Load(TallTree, "./images/talltree.png")
+	trees.Load(NoLeafsTallTree, "./images/tallnoleafstree.png")
 
 	grassSheet := Pictures["./images/newGrass.png"]
 	grassBatch := pixel.NewBatch(&pixel.TrianglesData{}, grassSheet)
@@ -1218,19 +1314,6 @@ func NewForest() *Forest {
 	hfenceBatchBot := pixel.NewBatch(&pixel.TrianglesData{}, hfenceSheet)
 	hfenceBatchTop := pixel.NewBatch(&pixel.TrianglesData{}, hfenceSheet)
 	hfenceFrame := hfenceSheet.Bounds()
-
-	// frameNumber := 0
-	// for x := 0; x <= 32; x++ {
-	// 	for y := 0; y <= 32; y++ {
-	// 		pos := pixel.V(float64(x*128)-64, float64(y*128)-64)
-	// 		bread := pixel.NewSprite(grassSheet, grassFrames[frameNumber])
-	// 		bread.Draw(grassBatch, pixel.IM.Moved(pos))
-	// 		frameNumber++
-	// 		if frameNumber >= len(grassFrames) {
-	// 			frameNumber = 0
-	// 		}
-	// 	}
-	// }
 
 	for x := 0; x <= 13; x++ {
 		for y := 0; y <= 13; y++ {
@@ -1294,67 +1377,43 @@ func NewForest() *Forest {
 	}
 
 	// Fill outside
-	for i := 0; i <= TreeQuantity; i++ {
-		pos := pixel.ZV
-		dirX := rand.Float64()
-		dirY := rand.Float64()
-		if dirX < .5 {
-			pos = pos.Add(pixel.V(dirX*4000, 0))
-		} else {
-			pos = pos.Sub(pixel.V(-dirX*4000, 0))
-		}
-		if dirY < .5 {
-			pos = pos.Add(pixel.V(0, dirY*4000))
-		} else {
-			pos = pos.Sub(pixel.V(0, -dirY*4000))
-		}
+	poss := generateRandomPoss(200, 0, int64(pathTop)-100, 0, 1800)
+	poss = append(poss, generateRandomPoss(200, 0, int64(pathTop)-100, 2200, 4000)...)
+	for i := range poss {
 		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
-		if pos.X < 1800 || pos.X > 2200 || pos.Y < 300 || pos.Y > float64(pathTreeLength*treeSeparation) {
-			if pos.Y < pathTop || pos.Y > arenaTop || pos.X < 1000 || pos.X > 3000 {
-				tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(pos))
-
-			}
-		}
+		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(poss[i]))
 	}
-	// Fill inside
 
-	arenaTrees := []pixel.Vec{
-		pixel.V(1100, 3010),
-		pixel.V(1390, 2960),
-		pixel.V(1700, 2980),
-		pixel.V(2300, 3012),
-		pixel.V(2550, 3060),
-		pixel.V(2770, 2940),
-
-		pixel.V(1130, 3322),
-		pixel.V(1370, 3350),
-		pixel.V(1740, 3260),
-		pixel.V(2280, 3320),
-		pixel.V(2550, 3250),
-		pixel.V(2780, 3270),
-
-		pixel.V(1100, 3610),
-		pixel.V(1390, 3560),
-		pixel.V(1700, 3580),
-		pixel.V(1990, 3720),
-		pixel.V(2300, 3612),
-		pixel.V(2550, 3660),
-		pixel.V(2770, 3540),
+	// fill with zombie trees
+	zombieTrees := generateRandomPoss(5, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	ztree := trees[ZombieTree]
+	for i := 0; i <= len(zombieTrees)-1; i++ {
+		tree := pixel.NewSprite(*ztree.Pic, ztree.Frame)
+		tree.Draw(ztree.Batch, pixel.IM.Moved(zombieTrees[i]))
 	}
-	for i := 0; i <= len(arenaTrees)-1; i++ {
 
-		tree := pixel.NewSprite(sauceSheet, sauceFrame)
+	// fill with tall trees
+	// commented because they were ugly
 
-		tree.Draw(sauceBatch, pixel.IM.Moved(arenaTrees[i]))
+	// tallTress := generateRandomPoss(10, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	// ttree := trees[TallTree]
+	// for i := 0; i <= len(tallTress)-1; i++ {
+	// 	tree := pixel.NewSprite(*ttree.Pic, ttree.Frame)
+	// 	tree.Draw(ttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(tallTress[i]))
+	// }
+
+	nltallTress := generateRandomPoss(8, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	nlttree := trees[NoLeafsTallTree]
+	for i := 0; i <= len(nltallTress)-1; i++ {
+		tree := pixel.NewSprite(*nlttree.Pic, nlttree.Frame)
+		tree.Draw(nlttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(nltallTress[i]))
 	}
 
 	return &Forest{
+		Trees:          trees,
 		Pic:            treeSheet,
 		Frames:         treeFrames,
 		Batch:          treeBatch,
-		SauceBatch:     sauceBatch,
-		SauceFrame:     sauceFrame,
-		SaucePic:       sauceSheet,
 		GrassBatch:     grassBatch,
 		GrassFrames:    grassFrames,
 		GrassPic:       grassSheet,
