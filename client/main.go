@@ -45,6 +45,7 @@ var (
 	DeadRight = []int{0, 1, 2}
 
 	ApocaFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
+	BloodFrames = []int{18, 19, 20, 21, 22, 23, 12, 13, 14, 15, 16, 17, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5}
 
 	Pictures map[string]pixel.Picture
 	Key      KeyConfig
@@ -91,6 +92,9 @@ func run() {
 		"./images/placaazulIcon.png",
 		"./images/penumbras.png",
 		"./images/penumbrasIcon.png",
+		"./images/gameIcon.png",
+		"./images/icesnipe.png",
+		"./images/blood.png",
 	)
 	rawConfig, err := ioutil.ReadFile("./key-config.json")
 	if err != nil {
@@ -114,6 +118,8 @@ func run() {
 		NewSpellData("explo", &player),
 		NewSpellData("fireball", &player),
 		NewSpellData("mini-explo", &player),
+		NewSpellData("icesnipe", &player),
+		NewSpellData("blood-explo", &player),
 	}
 	forest := NewForest()
 	//buda := NewBuda(pixel.V(2000, 3400))
@@ -125,9 +131,10 @@ func run() {
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title:   "Creative AO",
-		Monitor: pixelgl.PrimaryMonitor(),
-		Bounds:  pixel.R(0, 0, 1920, 1080),
+		Title: "Creative AO",
+		//Monitor: pixelgl.PrimaryMonitor(),
+		Bounds: pixel.R(0, 0, 960, 540),
+		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -155,7 +162,7 @@ func run() {
 		forest.Trees.Draw(win)
 		forest.FenceBatchV.Draw(win)
 		forest.FenceBatchHBOT.Draw(win)
-		spells.Draw(win, cam, socket, &otherPlayers, cursor, spells[4])
+		spells.Draw(win, cam, socket, &otherPlayers, cursor, spells[4], spells[6])
 		playerInfo.Draw(win, cam)
 		cursor.Draw(cam)
 		fps++
@@ -184,6 +191,7 @@ const (
 	SpellCastApoca
 	SpellCastExplo
 	SpellCastFireball
+	SpellCastIceSnipe
 )
 
 type Cursor struct {
@@ -329,15 +337,15 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
 	onspos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -20))
 	onsmatrix := pixel.IM.Moved(onspos).Scaled(onspos, 2)
-	pospos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -50))
-	posmatrix := pixel.IM.Moved(pospos)
-	typingmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-80, -15)))
+	fpspos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -40))
+	fpsmatrix := pixel.IM.Moved(fpspos)
+	typingmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-80, -10)))
 
-	pi.fps.Draw(win, posmatrix.Moved(pixel.V(0, -30)))
+	pi.fps.Draw(win, fpsmatrix)
 	pi.hdisplay.Draw(win, hmatrix)
 	pi.mdisplay.Draw(win, mmatrix)
 	pi.onsdisplay.Draw(win, onsmatrix)
-	pi.posdisplay.Draw(win, posmatrix)
+	pi.posdisplay.Draw(win, fpsmatrix.Moved(pixel.V(0, -20)))
 	if pi.player.chat.chatting {
 		pi.typing.Draw(win, typingmatrix)
 	}
@@ -356,10 +364,10 @@ func Map(v, s1, st1, s2, st2 float64) float64 {
 
 type GameSpells []*SpellData
 
-func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData) {
+func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData, bloodExplos *SpellData) {
 	for i := range gs {
 		gs[i].Batch.Clear()
-		gs[i].Update(win, cam, s, pd, cursor, miniExplos)
+		gs[i].Update(win, cam, s, pd, cursor, miniExplos, bloodExplos)
 		gs[i].Batch.Draw(win)
 	}
 }
@@ -369,6 +377,8 @@ type SpellData struct {
 	SpellMode         CursorMode
 	ManaCost, Damage  int
 	SpellSpeed        float64
+	ScaleF            float64
+	ProjSpeed         float64
 	Caster            *Player
 	Frames            []pixel.Rect
 	Pic               *pixel.Picture
@@ -376,7 +386,7 @@ type SpellData struct {
 	CurrentAnimations []*Spell
 }
 
-func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData) {
+func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, miniExplos *SpellData, bloodExplos *SpellData) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
 	dtproj := time.Since(sd.Caster.lastCastProj).Seconds()
 	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
@@ -398,6 +408,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 
 					sd.Caster.mp -= sd.ManaCost
 					newSpell := &Spell{
+						target:      pd.CurrentAnimations[key],
 						spellName:   &sd.SpellName,
 						step:        sd.Frames[0],
 						frameNumber: 0.0,
@@ -414,7 +425,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			cursor.SetNormalMode()
 		}
 	}
-	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.FireB)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && SpellCastFireball == sd.SpellMode {
+	if !sd.Caster.chat.chatting && ((win.JustPressed(pixelgl.Button(Key.FireB)) && SpellCastFireball == sd.SpellMode) || (win.JustPressed(pixelgl.Button(Key.IceSnipe)) && SpellCastIceSnipe == sd.SpellMode)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if dtproj >= ((time.Second.Seconds() / 10) * 6) {
 			sd.Caster.lastCastProj = time.Now()
 			mouse := cam.Unproject(win.MousePosition())
@@ -429,8 +440,15 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			paylaod, _ := json.Marshal(spell)
 			s.O <- models.NewMesg(models.Spell, paylaod)
 
-			vel := mouse.Sub(cam.Unproject(win.Bounds().Center()))
-			centerMatrix := sd.Caster.bodyMatrix.Rotated(cam.Unproject(win.Bounds().Center()), vel.Angle()+(math.Pi/2)).Scaled(cam.Unproject(win.Bounds().Center()), 2)
+			projectedCenter := cam.Unproject(win.Bounds().Center())
+			vel := mouse.Sub(projectedCenter)
+			centerMatrix := pixel.IM
+			if SpellCastFireball == sd.SpellMode {
+				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()+(math.Pi/2)).Scaled(projectedCenter, 2)
+			}
+			if SpellCastIceSnipe == sd.SpellMode {
+				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()).Scaled(projectedCenter, .6)
+			}
 			sd.Caster.mp -= sd.ManaCost
 			newSpell := &Spell{
 				caster:         s.ClientID,
@@ -447,10 +465,10 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 		}
 	}
-	if sd.SpellName == "fireball" {
+	if sd.SpellName == "fireball" || sd.SpellName == "icesnipe" {
 	FBALLS:
 		for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
-			next, kill := sd.CurrentAnimations[i].NextFrameFireball(sd.Frames)
+			next, kill := sd.CurrentAnimations[i].NextFrameFireball(sd.Frames, sd.ProjSpeed)
 			if kill {
 				if i < len(sd.CurrentAnimations)-1 {
 					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
@@ -468,7 +486,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 					sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
 					sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 					miniExplo := &Spell{
-
+						target:      p,
 						caster:      s.ClientID,
 						spellName:   &sd.SpellName,
 						step:        sd.Frames[0],
@@ -476,7 +494,13 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 						matrix:      &p.bodyMatrix,
 						last:        time.Now(),
 					}
-					miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
+					switch sd.SpellName {
+					case "fireball":
+						miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
+					case "icesnipe":
+						bloodExplos.CurrentAnimations = append(bloodExplos.CurrentAnimations, miniExplo)
+					}
+
 					p.hp -= sd.Damage
 					if p.hp <= 0 {
 						p.hp = 0
@@ -497,7 +521,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
 				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 				miniExplo := &Spell{
-
+					target:      sd.Caster,
 					caster:      s.ClientID,
 					spellName:   &sd.SpellName,
 					step:        sd.Frames[0],
@@ -505,12 +529,17 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 					matrix:      &sd.Caster.bodyMatrix,
 					last:        time.Now(),
 				}
-				miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
+				switch sd.SpellName {
+				case "fireball":
+					miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
+				case "icesnipe":
+					bloodExplos.CurrentAnimations = append(bloodExplos.CurrentAnimations, miniExplo)
+				}
 				continue
 			}
 			sd.CurrentAnimations[i].step = next
 			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
-			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix))
+			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 		}
 	} else {
 		for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
@@ -525,7 +554,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			}
 			sd.CurrentAnimations[i].step = next
 			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
-			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix))
+			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, sd.ScaleF))
 		}
 	}
 }
@@ -538,6 +567,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 	var mode CursorMode
 	var manaCost, damage int
 	var speed float64 = 21
+	var scalef = .8
+	var spellspeed = .0
 	switch spell {
 	case "apoca":
 		sheet = Pictures["./images/apocas.png"]
@@ -556,7 +587,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		frames = getFrames(sheet, 127, 127, 5, 3)
 		mode = SpellCastDesca
 		manaCost = 460
-		damage = 130
+		damage = 125
 	case "explo":
 		sheet = Pictures["./images/explosion.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -564,14 +595,17 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastExplo
 		manaCost = 1550
 		damage = 215
-		speed = 13
+		speed = 17
+		scalef = 1.2
 	case "fireball":
 		sheet = Pictures["./images/fireball.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 24, 24, 7, 0)
 		mode = SpellCastFireball
 		manaCost = 160
-		damage = 90
+		damage = 80
+		scalef = .9
+		spellspeed = 290.0
 	case "mini-explo":
 		sheet = Pictures["./images/smallExplosion.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -580,24 +614,32 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 0
 		damage = 0
 		speed = 16
-		// case "iceball":
-		// 	sheet = Pictures["./images/fireball.png"]
-		// 	batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
-		// 	frames = getFrames(sheet, 24, 24, 7, 0)
-		// 	mode = SpellCastFireball
-		// 	manaCost = 160
-		// 	damage = 90
-		// case "mini-explo":
-		// 	sheet = Pictures["./images/smallExplosion.png"]
-		// 	batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
-		// 	frames = getFrames(sheet, 48, 48, 17, 0)
-		// 	mode = Normal
-		// 	manaCost = 0
-		// 	damage = 0
-		// 	speed = 16
+		scalef = .9
+	case "icesnipe":
+		sheet = Pictures["./images/icesnipe.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 64, 64, 30, 0)
+		mode = SpellCastIceSnipe
+		manaCost = 610
+		damage = 170
+		speed = 20
+		spellspeed = 490
+	case "blood-explo":
+		sheet = Pictures["./images/blood.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		unorderedFrames := getFrames(sheet, 100, 100, 6, 4)
+		for i := range unorderedFrames {
+			frames = append(frames, unorderedFrames[BloodFrames[i]])
+		}
+		mode = Normal
+		manaCost = 0
+		damage = 0
+		speed = 25
 	}
 
 	return &SpellData{
+		ProjSpeed:         spellspeed,
+		ScaleF:            scalef,
 		SpellSpeed:        speed,
 		Caster:            caster,
 		SpellName:         spell,
@@ -636,14 +678,14 @@ func (a *Spell) NextFrame(spellFrames []pixel.Rect, speed float64) (pixel.Rect, 
 	return spellFrames[0], true
 }
 
-func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect) (pixel.Rect, bool) {
+func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect, speed float64) (pixel.Rect, bool) {
 	dt := time.Since(a.last).Seconds()
 	pdt := time.Since(a.projectileLife).Seconds()
 	a.last = time.Now()
 	a.frameNumber += 21 * dt
 	i := int(a.frameNumber)
 	if i <= len(spellFrames)-1 {
-		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(dt * FireballSpeed)
+		vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(dt * speed)
 		a.pos = a.pos.Add(vel)
 		(*a.matrix) = a.matrix.Moved(vel)
 		return spellFrames[i], false
@@ -795,7 +837,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 				}
 
 				target := &Player{}
-				if spell.Type != "fireball" {
+				if spell.Type != "fireball" && spell.Type != "icesnipe" {
 					if s.ClientID == spell.TargetID {
 						target = p
 					} else {
@@ -807,7 +849,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 
 				for i := range ssd {
 					sd := ssd[i]
-					if spell.Type == sd.SpellName && spell.Type != "fireball" {
+					if spell.Type == sd.SpellName && spell.Type != "fireball" && spell.Type != "icesnipe" {
 						newSpell.step = sd.Frames[0]
 						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
@@ -817,10 +859,16 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 							target.dead = true
 						}
 						break
-					} else if spell.Type == sd.SpellName && spell.Type == "fireball" {
+					} else if spell.Type == sd.SpellName && (spell.Type == "fireball" || spell.Type == "icesnipe") {
 						caster := pd.CurrentAnimations[spell.ID]
 						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
-						centerMatrix := caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+						centerMatrix := pixel.IM
+						if spell.Type == "fireball" {
+							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+						}
+						if spell.Type == "icesnipe" {
+							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+						}
 						newSpell.caster = spell.ID
 						newSpell.vel = vel
 						newSpell.pos = caster.pos

@@ -16,12 +16,13 @@ const (
 )
 
 type KeyConfig struct {
-	Apoca  int `json:"apoca_key"`
-	Desca  int `json:"desca_key"`
-	Explo  int `json:"explo_key"`
-	FireB  int `json:"fireball_key"`
-	Rojas  int `json:"rojas_key"`
-	Azules int `json:"azules_key"`
+	Apoca    int `json:"apoca_key"`
+	Desca    int `json:"desca_key"`
+	Explo    int `json:"explo_key"`
+	FireB    int `json:"fireball_key"`
+	IceSnipe int `json:"icesnipe_key"`
+	Rojas    int `json:"rojas_key"`
+	Azules   int `json:"azules_key"`
 }
 
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
