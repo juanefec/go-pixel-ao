@@ -64,6 +64,7 @@ type PlayerMsg struct {
 	ID     ksuid.KSUID `json:"id"`
 	Name   string      `json:"name"`
 	Skin   int         `json:"skin"`
+	HP     int         `json:"hp"`
 	X      float64     `json:"x"`
 	Y      float64     `json:"y"`
 	Dir    string      `json:"dir"`
