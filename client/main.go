@@ -30,8 +30,8 @@ var (
 	Zoom          = 2.0
 	ZoomSpeed     = 1.1
 	second        = time.Tick(time.Second)
-	MaxMana       = 2104
-	MaxHealth     = 307
+	MaxMana       = 2324
+	MaxHealth     = 347
 )
 var (
 	Newline   = []byte{'\n'}
@@ -426,7 +426,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 		}
 	}
 	if !sd.Caster.chat.chatting && ((win.JustPressed(pixelgl.Button(Key.FireB)) && SpellCastFireball == sd.SpellMode) || (win.JustPressed(pixelgl.Button(Key.IceSnipe)) && SpellCastIceSnipe == sd.SpellMode)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
-		if dtproj >= ((time.Second.Seconds() / 10) * 6) {
+		if dtproj >= ((time.Second.Seconds() / 10) * 7) {
 			sd.Caster.lastCastProj = time.Now()
 			mouse := cam.Unproject(win.MousePosition())
 			spell := models.SpellMsg{
@@ -579,7 +579,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		}
 		mode = SpellCastApoca
 		manaCost = 1000
-		damage = 180
+		damage = 190
 		break
 	case "desca":
 		sheet = Pictures["./images/desca.png"]
@@ -587,14 +587,14 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		frames = getFrames(sheet, 127, 127, 5, 3)
 		mode = SpellCastDesca
 		manaCost = 460
-		damage = 125
+		damage = 130
 	case "explo":
 		sheet = Pictures["./images/explosion.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 96, 96, 12, 0)
 		mode = SpellCastExplo
-		manaCost = 1550
-		damage = 215
+		manaCost = 1600
+		damage = 220
 		speed = 17
 		scalef = 1.2
 	case "fireball":
@@ -602,10 +602,10 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 24, 24, 7, 0)
 		mode = SpellCastFireball
-		manaCost = 160
+		manaCost = 200
 		damage = 80
 		scalef = .9
-		spellspeed = 290.0
+		spellspeed = 280.0
 	case "mini-explo":
 		sheet = Pictures["./images/smallExplosion.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -620,10 +620,10 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 64, 64, 30, 0)
 		mode = SpellCastIceSnipe
-		manaCost = 610
-		damage = 170
-		speed = 20
-		spellspeed = 490
+		manaCost = 800
+		damage = 165
+		speed = 12
+		spellspeed = 500
 	case "blood-explo":
 		sheet = Pictures["./images/blood.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -822,6 +822,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, ssd ...*SpellData)
 						player.dir = p.Dir
 						player.moving = p.Moving
 						player.dead = p.Dead
+						player.hp = p.HP
 					}
 				}
 				break
@@ -902,8 +903,9 @@ func (pd *PlayersData) Draw(win *pixelgl.Window) {
 	for _, p := range pd.CurrentAnimations {
 		pd.AnimationsMutex.RUnlock()
 		pd.Skins.DrawToBatch(p)
-		p.name.Draw(win, p.nameMatrix)
+		p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, -8)))
 		p.chat.Draw(win, p.pos)
+		p.DrawHealthMana(win)
 		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
@@ -937,6 +939,32 @@ type Player struct {
 	drinkingManaPotions   bool
 	drinkingHealthPotions bool
 	dead                  bool
+}
+
+func (p *Player) DrawHealthMana(win *pixelgl.Window) {
+	infoPos := p.pos.Add(pixel.V(-16, -24))
+	info := imdraw.New(nil)
+	info.Color = colornames.Black
+	info.EndShape = imdraw.SharpEndShape
+	info.Push(
+		infoPos.Add(pixel.V(0, 0)),
+		infoPos.Add(pixel.V(32, 0)),
+		infoPos.Add(pixel.V(0, -2)),
+		infoPos.Add(pixel.V(32, -2)),
+	)
+	info.Rectangle(2)
+
+	info.Color = pixel.RGB(1, 0, 0)
+	hval := Map(float64(p.hp), 0, float64(MaxHealth), 0, 32)
+	info.Push(
+		infoPos.Add(pixel.V(0, 0)),
+		infoPos.Add(pixel.V(hval, 0)),
+		infoPos.Add(pixel.V(0, -2)),
+		infoPos.Add(pixel.V(hval, -2)),
+	)
+	info.Rectangle(0)
+
+	info.Draw(win)
 }
 
 type Chat struct {
@@ -1106,6 +1134,7 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 		ID:     s.ClientID,
 		Name:   p.sname,
 		Skin:   int(p.bodySkin),
+		HP:     p.hp,
 		X:      p.pos.X,
 		Y:      p.pos.Y,
 		Dir:    p.dir,
@@ -1171,7 +1200,7 @@ func (p *Player) Update() {
 		}
 		if p.drinkingManaPotions && !p.drinkingHealthPotions {
 			if dt > second/4 {
-				p.mp += 105
+				p.mp += 117
 				if p.mp > MaxMana {
 					p.mp = MaxMana
 				}
