@@ -131,10 +131,10 @@ func run() {
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title: "Creative AO",
-		//Monitor: pixelgl.PrimaryMonitor(),
-		Bounds: pixel.R(0, 0, 960, 540),
-		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
+		Title:   "Creative AO",
+		Monitor: pixelgl.PrimaryMonitor(),
+		Bounds:  pixel.R(0, 0, 1360, 840),
+		Icon:    []pixel.Picture{Pictures["./images/gameIcon.png"]},
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -245,37 +245,60 @@ func (c *Cursor) Draw(cam pixel.Matrix) {
 	}
 }
 
+type HudComponent int
+
+const (
+	HealthNumber HudComponent = iota
+	ManaNumber
+	OnlineCount
+	PosXY
+	TypingMark
+	FPSCount
+)
+
 type PlayerInfo struct {
-	playersData                                             *PlayersData
-	player                                                  *Player
-	hdisplay, mdisplay, onsdisplay, posdisplay, typing, fps *text.Text
-	nfps                                                    int
+	playersData *PlayersData
+	player      *Player
+	hudText     []*TextProp
+	nfps        int
 }
 
 func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 	pi := PlayerInfo{}
+	hudProps := make([]*TextProp, 6)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
-	pi.hdisplay = text.New(pixel.ZV, basicAtlas)
-	pi.hdisplay.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.hdisplay, "%v/%v", player.hp, MaxHealth)
-	pi.mdisplay = text.New(pixel.ZV, basicAtlas)
-	pi.mdisplay.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.mdisplay, "%v/%v", player.mp, MaxMana)
-	pi.typing = text.New(pixel.ZV, basicAtlas)
-	pi.typing.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.typing, "Typing...")
-	pi.onsdisplay = text.New(pixel.ZV, basicAtlas)
-	pi.onsdisplay.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.onsdisplay, "Online: %v", pd.Online+1)
-	pi.posdisplay = text.New(pixel.ZV, basicAtlas)
-	pi.posdisplay.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.posdisplay, "X: %v\nY: %v", player.pos.X, player.pos.Y)
-	pi.fps = text.New(pixel.ZV, basicAtlas)
-	pi.fps.Color = colornames.Whitesmoke
-	fmt.Fprintf(pi.fps, "FPS: %v", 0)
+	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, MaxHealth)
+	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, MaxMana)
+	hudProps[OnlineCount] = NewTextProp(basicAtlas, "Typing...")
+	hudProps[PosXY] = NewTextProp(basicAtlas, "Online: %v", pd.Online+1)
+	hudProps[TypingMark] = NewTextProp(basicAtlas, "X: %v\nY: %v", player.pos.X, player.pos.Y)
+	hudProps[FPSCount] = NewTextProp(basicAtlas, "FPS: %v", 0)
 	pi.player = player
 	pi.playersData = pd
+	pi.hudText = hudProps
 	return &pi
+}
+
+type TextProp struct {
+	Text  *text.Text
+	SText string
+}
+
+func NewTextProp(a *text.Atlas, s string, ss ...interface{}) *TextProp {
+	tp := &TextProp{
+		SText: fmt.Sprintf(s, ss...),
+		Text:  text.New(pixel.ZV, a),
+	}
+	tp.Text.Color = colornames.Whitesmoke
+	fmt.Fprint(tp.Text, tp.SText)
+	return tp
+}
+
+func (tp *TextProp) Draw(win *pixelgl.Window, m pixel.Matrix, s string, ss ...interface{}) {
+	tp.Text.Clear()
+	tp.SText = fmt.Sprintf(s, ss...)
+	fmt.Fprint(tp.Text, tp.SText)
+	tp.Text.Draw(win, m)
 }
 
 func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
@@ -291,7 +314,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 		infoPos.Add(pixel.V(-2, -22)),
 		infoPos.Add(pixel.V(-2, 2)),
 	)
-	info.Line(4)
+	info.Rectangle(4)
 	info.Push(
 		infoPos.Add(pixel.V(-2, -28)),
 		infoPos.Add(pixel.V(152, -28)),
@@ -299,7 +322,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 		infoPos.Add(pixel.V(-2, -52)),
 		infoPos.Add(pixel.V(-2, -28)),
 	)
-	info.Line(4)
+	info.Rectangle(4)
 	info.Color = pixel.RGB(1, 0, 0)
 	hval := Map(float64(pi.player.hp), 0, float64(MaxHealth), 0, 150)
 	info.Push(
@@ -319,35 +342,17 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	)
 	info.Rectangle(0)
 	info.Draw(win)
-	pi.hdisplay.Clear()
-	pi.mdisplay.Clear()
-	pi.onsdisplay.Clear()
-	pi.posdisplay.Clear()
-	pi.typing.Clear()
-	pi.fps.Clear()
 
-	fmt.Fprintf(pi.hdisplay, "%v/%v", pi.player.hp, MaxHealth)
-	fmt.Fprintf(pi.mdisplay, "%v/%v", pi.player.mp, MaxMana)
-	fmt.Fprintf(pi.onsdisplay, "Online: %v", pi.playersData.Online+1)
-	fmt.Fprintf(pi.posdisplay, "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
-	fmt.Fprintf(pi.typing, "Typing...")
-	fmt.Fprintf(pi.fps, "FPS: %v", pi.nfps)
-
-	hmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(46, -15)))
-	mmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(40, -45)))
+	pi.hudText[HealthNumber].Draw(win, pixel.IM.Moved(infoPos.Add(pixel.V(46, -15))), "%v/%v", pi.player.hp, MaxHealth)
+	pi.hudText[ManaNumber].Draw(win, pixel.IM.Moved(infoPos.Add(pixel.V(40, -45))), "%v/%v", pi.player.mp, MaxMana)
 	onspos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -20))
-	onsmatrix := pixel.IM.Moved(onspos).Scaled(onspos, 2)
-	fpspos := infoPos.Add(pixel.V(-(winSize.X/2)+180, -40))
-	fpsmatrix := pixel.IM.Moved(fpspos)
-	typingmatrix := pixel.IM.Moved(infoPos.Add(pixel.V(-80, -10)))
+	pi.hudText[OnlineCount].Draw(win, pixel.IM.Moved(onspos).Scaled(onspos, 2), "Online: %v", pi.playersData.Online+1)
+	pi.hudText[FPSCount].Draw(win, pixel.IM.Moved(onspos.Add(pixel.V(0, -20))), "FPS: %v", pi.nfps)
+	pi.hudText[PosXY].Draw(win, pixel.IM.Moved(onspos.Add(pixel.V(0, -40))), "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
 
-	pi.fps.Draw(win, fpsmatrix)
-	pi.hdisplay.Draw(win, hmatrix)
-	pi.mdisplay.Draw(win, mmatrix)
-	pi.onsdisplay.Draw(win, onsmatrix)
-	pi.posdisplay.Draw(win, fpsmatrix.Moved(pixel.V(0, -20)))
+	pi.hudText[TypingMark].Text.Clear()
 	if pi.player.chat.chatting {
-		pi.typing.Draw(win, typingmatrix)
+		pi.hudText[TypingMark].Draw(win, pixel.IM.Moved(infoPos.Add(pixel.V(-80, -10))), "Typing...")
 	}
 }
 
@@ -510,16 +515,7 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 				}
 			}
 			if sd.CurrentAnimations[i].caster != s.ClientID && !sd.Caster.dead && sd.Caster.OnMe(sd.CurrentAnimations[i].pos) {
-				sd.Caster.hp -= sd.Damage
-				if sd.Caster.hp <= 0 {
-					sd.Caster.hp = 0
-					sd.Caster.dead = true
-				}
-				if i < len(sd.CurrentAnimations)-1 {
-					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
-				}
-				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
-				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+
 				miniExplo := &Spell{
 					target:      sd.Caster,
 					caster:      s.ClientID,
@@ -531,10 +527,22 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 				}
 				switch sd.SpellName {
 				case "fireball":
+					sd.Caster.hp -= sd.Damage
 					miniExplos.CurrentAnimations = append(miniExplos.CurrentAnimations, miniExplo)
 				case "icesnipe":
+					sd.Caster.hp -= int(Map(Dist(sd.Caster.pos, pd.CurrentAnimations[sd.CurrentAnimations[i].caster].pos), 0, 1200, 40, float64(sd.Damage)))
 					bloodExplos.CurrentAnimations = append(bloodExplos.CurrentAnimations, miniExplo)
 				}
+
+				if sd.Caster.hp <= 0 {
+					sd.Caster.hp = 0
+					sd.Caster.dead = true
+				}
+				if i < len(sd.CurrentAnimations)-1 {
+					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+				}
+				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 				continue
 			}
 			sd.CurrentAnimations[i].step = next
@@ -557,6 +565,11 @@ func (sd *SpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Soc
 			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, sd.ScaleF))
 		}
 	}
+}
+
+func Dist(v1, v2 pixel.Vec) float64 {
+	w, h := math.Abs(v1.X-v2.X), math.Abs(v1.Y-v2.Y)
+	return math.Sqrt(math.Pow(w, 2) + math.Pow(h, 2))
 }
 
 func NewSpellData(spell string, caster *Player) *SpellData {
@@ -621,7 +634,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		frames = getFrames(sheet, 64, 64, 30, 0)
 		mode = SpellCastIceSnipe
 		manaCost = 800
-		damage = 165
+		damage = 310
 		speed = 12
 		spellspeed = 500
 	case "blood-explo":
