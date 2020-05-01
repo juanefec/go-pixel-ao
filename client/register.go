@@ -18,12 +18,7 @@ const (
 	Color
 )
 
-type LoginData struct {
-	Name string
-	Skin SkinType
-}
-
-func SetNameWindow() (LoginData, error) {
+func LoginWindow() (Wizard, error) {
 
 	atlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	nickname := text.New(pixel.V(50, 100), atlas)
@@ -87,7 +82,7 @@ func SetNameWindow() (LoginData, error) {
 			}
 			if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
 				if nn == "creagod" {
-					return LoginData{
+					return Wizard{
 						Name: nn,
 						Skin: GodBody,
 					}, nil
@@ -117,41 +112,60 @@ func SetNameWindow() (LoginData, error) {
 				x, y := win.MousePosition().XY()
 				halfdist := dist / 2
 				if x < dist+halfdist && x > dist-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: BlueBody,
+					return Wizard{
+						Name:          nn,
+						Skin:          BlueBody,
+						Type:          Monk,
+						SpecialSpells: []string{"healingshot", "heal-spot"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
 					}, nil
-				}
 
+				}
 				if x < (dist*2)+halfdist && x > (dist*2)-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: RedBody,
+					return Wizard{
+						Skin:          RedBody,
+						Name:          nn,
+						Type:          Hunter,
+						SpecialSpells: []string{"arrowshot", "bear-trap"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
 					}, nil
 				}
 				if x < (dist*3)+halfdist && x > (dist*3)-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: BlueArmorBody,
+					return Wizard{
+						Skin:          BlueArmorBody,
+						Name:          nn,
+						Type:          Sniper,
+						SpecialSpells: []string{"icesnipe", "smoke-spot"},
+						Intervals:     []float64{BasicSpellInterval, IcesnipeSpellInterval, LavaSpellInterval},
 					}, nil
 				}
 				if x < (dist*4)+halfdist && x > (dist*4)-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: DarkMasterBody,
+					return Wizard{
+						Name:          nn,
+						Skin:          DarkMasterBody,
+						Type:          DarkWizard,
+						SpecialSpells: []string{"fireball", "lava-spot"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, LavaSpellInterval},
 					}, nil
 				}
 				if x < (dist*5)+halfdist && x > (dist*5)-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: TuniDruida,
+					return Wizard{
+						Skin:          TuniDruida,
+						Name:          nn,
+						Type:          Shaman,
+						SpecialSpells: []string{"manaspender", "mana-spot"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
 					}, nil
 				}
 				if x < (dist*6)+halfdist && x > (dist*6)-halfdist && y > 110 && y < 210 {
-					return LoginData{
-						Name: nn,
-						Skin: TwilightBody,
+					return Wizard{
+						Skin:          TwilightBody,
+						Name:          nn,
+						Type:          Igniter,
+						SpecialSpells: []string{"igniteball", "implode"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
 					}, nil
+
 				}
 			}
 		}
@@ -161,7 +175,7 @@ func SetNameWindow() (LoginData, error) {
 		win.Update()
 		<-fps
 	}
-	return LoginData{}, fmt.Errorf("No se ingreso el nombre correctamente")
+	return Wizard{}, fmt.Errorf("No se ingreso el nombre correctamente")
 }
 
 func inBody(skin SkinType) {}
