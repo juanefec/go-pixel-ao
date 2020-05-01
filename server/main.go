@@ -81,7 +81,7 @@ func (r Ranking) ToMsg() []byte {
 	return m
 }
 
-func (r Ranking) Update(payload json.RawMessage) {
+func (r *Ranking) Update(payload json.RawMessage) {
 	d := models.DeathMsg{}
 	err := json.Unmarshal(payload, &d)
 	if err != nil {
@@ -89,13 +89,13 @@ func (r Ranking) Update(payload json.RawMessage) {
 	}
 	killerExist := false
 	killedExist := false
-	for i := range r {
-		if r[i].ID == d.Killer {
-			r[i].K++
+	for i := range *r {
+		if (*r)[i].ID == d.Killer {
+			(*r)[i].K++
 			killerExist = true
 		}
-		if r[i].ID == d.Killed {
-			r[i].D++
+		if (*r)[i].ID == d.Killed {
+			(*r)[i].D++
 			killedExist = true
 		}
 	}
@@ -106,7 +106,7 @@ func (r Ranking) Update(payload json.RawMessage) {
 			K:    0,
 			D:    1,
 		}
-		r = append(r, rr)
+		*r = append(*r, rr)
 	}
 	if !killerExist {
 		rr := &models.RankingPosMsg{
@@ -115,7 +115,7 @@ func (r Ranking) Update(payload json.RawMessage) {
 			K:    1,
 			D:    0,
 		}
-		r = append(r, rr)
+		*r = append(*r, rr)
 	}
 }
 
@@ -169,9 +169,8 @@ func (c *Client) readPump() {
 			c.game.Ranking.Update(msg.Payload)
 			break
 		}
+		data = bytes.Buffer{}
 	}
-
-	data = bytes.Buffer{}
 
 }
 
@@ -287,7 +286,7 @@ func (g *Game) Run() {
 }
 
 func (g *Game) RankingUpdater(c *Client) {
-	updater := time.Tick(time.Second * 10)
+	updater := time.Tick(time.Second)
 ULOOP:
 	for {
 		select {
