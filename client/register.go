@@ -166,7 +166,7 @@ func LoginWindow() (Wizard, error) {
 						Name:          nn,
 						Type:          Timewreker,
 						SpecialSpells: []string{"rockshot", "flash"},
-						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, FlashSpellInterval},
+						Intervals:     []float64{BasicSpellInterval, RockSpellInterval, FlashSpellInterval},
 					}, nil
 
 				}

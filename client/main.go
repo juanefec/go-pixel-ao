@@ -34,8 +34,8 @@ var (
 	Zoom               = 2.0
 	ZoomSpeed          = 1.1
 	second             = time.Tick(time.Second)
-	MaxMana            = 2324
-	MaxHealth          = 347
+	MaxMana            = 2324.0
+	MaxHealth          = 347.0
 	OnTargetSpellRange = 400.0
 	AOESpellRange      = 700.0
 	FlashSpellRange    = 200.0
@@ -43,8 +43,10 @@ var (
 	BasicSpellInterval    = (time.Second.Seconds() / 10) * 9
 	FireballSpellInterval = (time.Second.Seconds() / 10) * 7
 	IcesnipeSpellInterval = (time.Second.Seconds() / 10) * 8
+	RockSpellInterval     = time.Second.Seconds() * 8
 	LavaSpellInterval     = time.Second.Seconds() * 14
-	FlashSpellInterval    = time.Second.Seconds() * 2
+	ManaSpotSpellInterval = time.Second.Seconds() * 16
+	FlashSpellInterval    = time.Second.Seconds() * 10
 
 	// Ranking
 	Ranking = []models.RankingPosMsg{}
@@ -200,7 +202,7 @@ func run() {
 		//Monitor: pixelgl.PrimaryMonitor(),
 		Bounds: pixel.R(0, 0, 1360, 840),
 		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
-		VSync:  true,
+		//VSync:  true,
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -345,7 +347,7 @@ type SpellData struct {
 	SpellName         string
 	SpellMode         CursorMode
 	WizardCaster      WizardType
-	ManaCost, Damage  int
+	ManaCost, Damage  float64
 	SpellSpeed        float64
 	ScaleF            float64
 	ProjSpeed         float64
@@ -527,7 +529,7 @@ FBALLS:
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 				}
 				if "blood-explo" == effects[i].SpellName && sd.SpellName == "icesnipe" {
-					sd.Caster.hp -= int(Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage)))
+					sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage))
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 				}
 
@@ -637,18 +639,18 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 				dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
 				sd.CurrentAnimations[i].damageInterval = time.Now()
 				if sd.WizardCaster == Shaman {
-					sd.Caster.mp -= int(float64(sd.Damage) * dt)
+					sd.Caster.mp -= float64(sd.Damage) * dt
 					if sd.Caster.mp > MaxMana {
 						sd.Caster.mp = MaxMana
 					}
 				} else if sd.WizardCaster == Monk {
-					sd.Caster.hp -= int(float64(sd.Damage) * dt)
+					sd.Caster.hp -= float64(sd.Damage) * dt
 					if sd.Caster.hp > MaxHealth {
 						sd.Caster.hp = MaxHealth
 					}
 				} else {
 					if sd.CurrentAnimations[i].caster != s.ClientID {
-						sd.Caster.hp -= int(float64(sd.Damage) * dt)
+						sd.Caster.hp -= float64(sd.Damage) * dt
 						if sd.Caster.hp <= 0 {
 							sd.Caster.hp = 0
 							sd.Caster.dead = true
@@ -760,7 +762,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 	var batch *pixel.Batch
 	var frames []pixel.Rect
 	var mode CursorMode
-	var manaCost, damage int
+	var manaCost, damage float64
 	var framesspeed float64 = 21
 	var scalef = .8
 	var spellspeed = .0
@@ -854,7 +856,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 5
+		lifespawn = 5
 		interval = LavaSpellInterval
 	case "heal-spot":
 		casterType = Monk
@@ -868,8 +870,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 4
-		interval = LavaSpellInterval
+		lifespawn = 4
+		interval = ManaSpotSpellInterval
 	case "healshot":
 		casterType = Monk
 		sheet = Pictures["./images/healingShot.png"]
@@ -885,7 +887,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 240
 		scalef = 1
 		spellType = "projectile"
-		lifespawn = .70
+		lifespawn = 1.4
 		interval = IcesnipeSpellInterval
 	case "mana-spot":
 		casterType = Shaman
@@ -894,13 +896,13 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		frames = getFrames(sheet, 128, 128, 12, 0)
 		mode = SpellCastSecondarySkill
 		manaCost = 1200
-		damage = -300 //por segundo
+		damage = -350 //por segundo
 		framesspeed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 6
-		interval = LavaSpellInterval
+		lifespawn = 6
+		interval = ManaSpotSpellInterval
 	case "manashot":
 		casterType = Shaman
 		sheet = Pictures["./images/manaShot.png"]
@@ -913,10 +915,11 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 300
 		damage = 400
 		framesspeed = 80
-		spellspeed = 240
+		spellspeed = 250
 		scalef = 1
 		spellType = "projectile"
 		interval = IcesnipeSpellInterval
+		lifespawn = 1.4
 	case "smoke-spot":
 		casterType = Sniper
 		sheet = Pictures["./images/smokeSpot.png"]
@@ -929,7 +932,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 3
+		lifespawn = 3
 		interval = LavaSpellInterval
 	case "rockshot":
 		casterType = Timewreker
@@ -941,12 +944,12 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		}
 		mode = SpellCastSecondarySkill
 		manaCost = 700
-		damage = 130
+		damage = 120
 		framesspeed = 40
 		spellspeed = 230
 		scalef = .5
 		spellType = "projectile"
-		interval = IcesnipeSpellInterval
+		interval = RockSpellInterval
 		lifespawn = .9
 	case "flash":
 		casterType = Timewreker
@@ -1264,12 +1267,10 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				json.Unmarshal(msg.Payload, &chatMsg)
 				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.Message)
 			case models.UpdateRanking:
-				println("reciving ranking")
 				rankingMsg := []models.RankingPosMsg{}
 				json.Unmarshal(msg.Payload, &rankingMsg)
 				Ranking = rankingMsg
 				for i := range Ranking {
-					println(Ranking[i].Name)
 					if Ranking[i].ID == s.ClientID {
 						p.kills = Ranking[i].K
 						p.deaths = Ranking[i].D
@@ -1316,7 +1317,7 @@ type Player struct {
 	bodyFrame, headFrame, bacuFrame, hatFrame                                 pixel.Rect
 	bodySkin, headSkin, hatSkin, staffSkin                                    SkinType
 	head, body, bacu, hat                                                     *pixel.Sprite
-	hp, mp                                                                    int // health/mana points
+	hp, mp                                                                    float64 // health/mana points
 	wizard                                                                    *Wizard
 	chat                                                                      Chat
 	pos                                                                       pixel.Vec
@@ -1507,7 +1508,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.lastDeadFrame = time.Now()
 	p.lastDrank = time.Now()
 	p.lastCast = time.Now().Add(-time.Second * 2)
-	p.lastCastPrimary = time.Now().Add(-time.Second * 2)
+	p.lastCastPrimary = time.Now().Add(-time.Second * 20)
 	p.lastCastSecondary = time.Now().Add(-time.Second * 20)
 	p.inviEffectOut = time.Now().Add(-time.Second * 2)
 
