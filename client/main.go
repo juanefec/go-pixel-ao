@@ -24,6 +24,10 @@ import (
 	"golang.org/x/image/font/basicfont"
 )
 
+const (
+	PlayerBaseSpeed = 185.0
+)
+
 var (
 	PlayerSpeed        = 185.0
 	FireballSpeed      = 290.0
@@ -33,11 +37,13 @@ var (
 	MaxMana            = 2324
 	MaxHealth          = 347
 	OnTargetSpellRange = 400.0
+	FlashSpellRange    = 200.0
 	//Spell intervals
 	BasicSpellInterval    = (time.Second.Seconds() / 10) * 9
 	FireballSpellInterval = (time.Second.Seconds() / 10) * 7
 	IcesnipeSpellInterval = (time.Second.Seconds() / 10) * 8
-	LavaSpellInterval     = time.Second.Seconds() * 10
+	LavaSpellInterval     = time.Second.Seconds() * 14
+	FlashSpellInterval    = time.Second.Seconds() * 6
 )
 var (
 	Newline   = []byte{'\n'}
@@ -50,8 +56,17 @@ var (
 	DeadLeft  = []int{3, 4, 5}
 	DeadRight = []int{0, 1, 2}
 
-	ApocaFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
-	BloodFrames = []int{18, 19, 20, 21, 22, 23, 12, 13, 14, 15, 16, 17, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5}
+	ApocaFrames       = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
+	BloodFrames       = []int{18, 19, 20, 21, 22, 23, 12, 13, 14, 15, 16, 17, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5}
+	HealingShotFrames = []int{
+		48, 49, 50, 51, 52, 53, 54, 55,
+		40, 41, 42, 43, 44, 45, 46, 47,
+		32, 33, 34, 35, 36, 37, 38, 39,
+		24, 25, 26, 27, 28, 29, 30, 31,
+		16, 17, 18, 19, 20, 21, 22, 23,
+		8, 9, 10, 11, 12, 13, 14, 15,
+		0, 1, 2, 3, 4, 5, 6, 7}
+	RockFrames = []int{56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53, 54, 55, 40, 41, 42, 43, 44, 45, 46, 47, 32, 33, 34, 35, 36, 37, 38, 39, 24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7}
 
 	Pictures map[string]pixel.Picture
 	Key      KeyConfig
@@ -110,10 +125,18 @@ func run() {
 		"./images/lavaSpotIcon.png",
 		"./images/healingSpot.png",
 		"./images/healingSpotIcon.png",
+		"./images/healingShot.png",
+		"./images/healingShotIcon.png",
 		"./images/manaSpot.png",
 		"./images/manaSpotIcon.png",
+		"./images/manaShot.png",
+		"./images/manaShotIcon.png",
 		"./images/smokeSpot.png",
 		"./images/smokeSpotIcon.png",
+		"./images/flashEffect.png",
+		"./images/flashEffectIcon.png",
+		"./images/rockShot.png",
+		"./images/rockShotIcon.png",
 	)
 	rawConfig, err := ioutil.ReadFile("./key-config.json")
 	if err != nil {
@@ -140,12 +163,18 @@ func run() {
 		Projectile: GameSpells{
 			NewSpellData("fireball", &player),
 			NewSpellData("icesnipe", &player),
+			NewSpellData("healshot", &player),
+			NewSpellData("manashot", &player),
+			NewSpellData("rockshot", &player),
 		},
 		AOE: GameSpells{
 			NewSpellData("lava-spot", &player),
 			NewSpellData("heal-spot", &player),
 			NewSpellData("smoke-spot", &player),
 			NewSpellData("mana-spot", &player),
+		},
+		Movement: GameSpells{
+			NewSpellData("flash", &player),
 		},
 		Effects: GameSpells{
 			NewSpellData("mini-explo", &player),
@@ -167,6 +196,7 @@ func run() {
 		//Monitor: pixelgl.PrimaryMonitor(),
 		Bounds: pixel.R(0, 0, 1360, 840),
 		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
+		VSync:  true,
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -220,9 +250,9 @@ const (
 	DarkWizard WizardType = iota //tuni negra
 	Monk                         // la celeste
 	Shaman                       // el druida
-	Hunter                       // el rojo
 	Sniper                       //
 	Timewreker                   //
+	Hunter                       // el rojo
 	Igniter                      // penumbras
 )
 
@@ -249,6 +279,7 @@ type SpellKinds struct {
 	OnTarget,
 	Projectile,
 	AOE,
+	Movement,
 	Effects GameSpells
 }
 
@@ -257,6 +288,7 @@ func (sk *SpellKinds) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Sock
 	sk.Projectile.Draw(win, cam, s, pd, cursor, sk.Effects...)
 	sk.Effects.Draw(win, cam, s, pd, cursor)
 	sk.AOE.Draw(win, cam, s, pd, cursor)
+	sk.Movement.Draw(win, cam, s, pd, cursor)
 }
 
 type GameSpells []*SpellData
@@ -279,6 +311,12 @@ func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socke
 		for i := range gs {
 			gs[i].Batch.Clear()
 			gs[i].UpdateAOE(win, cam, s, pd, cursor)
+			gs[i].Batch.Draw(win)
+		}
+	case "movement":
+		for i := range gs {
+			gs[i].Batch.Clear()
+			gs[i].UpdateMovement(win, cam, s, pd, cursor)
 			gs[i].Batch.Draw(win)
 		}
 
@@ -314,7 +352,7 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 			if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= OnTargetSpellRange {
 				for key := range pd.CurrentAnimations {
 
-					if !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastFireball && pd.CurrentAnimations[key].OnMe(mouse) {
+					if !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastPrimarySkill && pd.CurrentAnimations[key].OnMe(mouse) {
 						spell := models.SpellMsg{
 							ID:        s.ClientID,
 							SpellType: sd.SpellType,
@@ -387,11 +425,15 @@ func (sd *SpellData) UpdateProjectiles(win *pixelgl.Window, cam pixel.Matrix, s 
 			projectedCenter := cam.Unproject(win.Bounds().Center())
 			vel := mouse.Sub(projectedCenter)
 			centerMatrix := pixel.IM
-			if SpellCastFireball == sd.SpellMode {
+			switch sd.SpellName {
+			case "fireball":
 				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()+(math.Pi/2)).Scaled(projectedCenter, 2)
-			}
-			if SpellCastIceSnipe == sd.SpellMode {
+			case "icesnipe":
 				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()).Scaled(projectedCenter, .6)
+			case "healshot", "manashot":
+				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()+(math.Pi/2)).Scaled(projectedCenter, .6)
+			case "rockshot":
+				centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle())
 			}
 			sd.Caster.mp -= sd.ManaCost
 			newSpell := &Spell{
@@ -449,6 +491,9 @@ FBALLS:
 					p.hp = 0
 					p.dead = true
 				}
+				if p.hp > MaxHealth {
+					p.hp = MaxHealth
+				}
 				continue FBALLS
 			}
 		}
@@ -472,12 +517,30 @@ FBALLS:
 					sd.Caster.hp -= int(Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage)))
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 				}
-			}
 
+			}
+			if sd.SpellName == "rockshot" {
+				sd.Caster.lastRootedStart = time.Now()
+				sd.Caster.rooted = true
+				sd.Caster.hp -= sd.Damage
+			}
+			if sd.SpellName == "healshot" {
+				sd.Caster.hp -= sd.Damage
+			}
+			if sd.SpellName == "manashot" {
+				sd.Caster.mp -= sd.Damage
+			}
 			if sd.Caster.hp <= 0 {
 				sd.Caster.hp = 0
 				sd.Caster.dead = true
 			}
+			if sd.Caster.hp > MaxHealth {
+				sd.Caster.hp = MaxHealth
+			}
+			if sd.Caster.mp < 0 {
+				sd.Caster.mp = 0
+			}
+
 			if i < len(sd.CurrentAnimations)-1 {
 				copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
 			}
@@ -489,10 +552,6 @@ FBALLS:
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
-
-}
-
-func (sd *SpellData) ListenEventsAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 
 }
 
@@ -531,6 +590,7 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 						matrix:         &spellMatrix,
 						last:           time.Now(),
 						caster:         s.ClientID,
+						damageInterval: time.Now(),
 					}
 
 					newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
@@ -550,58 +610,102 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 			sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 			continue
 		}
-		for key := range pd.CurrentAnimations {
-			p := pd.CurrentAnimations[key]
-			if sd.CurrentAnimations[i].caster != key && !p.dead && p.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
-				switch sd.SpellName {
-				case "lava-spot":
-					dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
-					if dt >= time.Second.Seconds()/100 {
-						sd.CurrentAnimations[i].damageInterval = time.Now()
-						if sd.WizardCaster == Monk {
-							p.mp -= sd.Damage
-							if p.mp <= 0 {
-								p.mp = 0
-							}
-						} else {
-							p.hp -= sd.Damage
-							if p.hp <= 0 {
-								p.hp = 0
-								p.dead = true
-							}
+		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+			switch sd.SpellName {
+			case "lava-spot", "heal-spot", "mana-spot":
+				dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
+				sd.CurrentAnimations[i].damageInterval = time.Now()
+				if sd.WizardCaster == Shaman {
+					println(int(float64(sd.Damage) * dt))
+					sd.Caster.mp -= int(float64(sd.Damage) * dt)
+					if sd.Caster.mp > MaxMana {
+						sd.Caster.mp = MaxMana
+					}
+				} else if sd.WizardCaster == Monk {
+					println(int(float64(sd.Damage) * dt))
+					sd.Caster.hp -= int(float64(sd.Damage) * dt)
+					if sd.Caster.hp > MaxHealth {
+						sd.Caster.hp = MaxHealth
+					}
+				} else {
+					if sd.CurrentAnimations[i].caster != s.ClientID {
+						sd.Caster.hp -= int(float64(sd.Damage) * dt)
+						if sd.Caster.hp <= 0 {
+							sd.Caster.hp = 0
+							sd.Caster.dead = true
 						}
 					}
-				case "smoke-spot":
-					p.invisible = true
+				}
+
+			case "smoke-spot":
+				sd.Caster.invisible = true
+				sd.Caster.inviEffectOut = time.Now()
+			}
+		} else {
+			sd.CurrentAnimations[i].damageInterval = time.Now()
+		}
+		sd.CurrentAnimations[i].step = next
+		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
+		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
+	}
+
+}
+
+func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+	if sd.Caster.wizard.Type == Timewreker && sd.SpellName == "flash" {
+		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
+		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+			if dt >= sd.Interval {
+				sd.Caster.lastCastSecondary = time.Now()
+				mouse := cam.Unproject(win.MousePosition())
+				spell := models.SpellMsg{
+					ID:        s.ClientID,
+					SpellType: sd.SpellType,
+					SpellName: sd.SpellName,
+					TargetID:  ksuid.Nil,
+					Name:      sd.Caster.sname,
+					X:         mouse.X,
+					Y:         mouse.Y,
+				}
+				paylaod, _ := json.Marshal(spell)
+				s.O <- models.NewMesg(models.Spell, paylaod)
+
+				spellMatrix := pixel.IM.Moved(sd.Caster.pos)
+				sd.Caster.mp -= sd.ManaCost
+				newSpell := &Spell{
+					pos:         sd.Caster.pos,
+					spellName:   &sd.SpellName,
+					step:        sd.Frames[0],
+					frameNumber: 0.0,
+					matrix:      &spellMatrix,
+					last:        time.Now(),
+					caster:      s.ClientID,
+				}
+
+				newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+				sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+				dist := Dist(mouse, cam.Unproject(win.Bounds().Center()))
+				if dist <= FlashSpellRange {
+					sd.Caster.pos = mouse
+				} else {
+					nm := VectorNormalize(mouse.Sub(cam.Unproject(win.Bounds().Center())))
+					sd.Caster.pos = nm.Scaled(FlashSpellRange).Add(cam.Unproject(win.Bounds().Center()))
 				}
 
 			}
 		}
-		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
-			switch sd.SpellName {
-			case "lava-spot":
-				if sd.CurrentAnimations[i].caster != s.ClientID {
-					dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
-					if dt >= time.Second.Seconds()/100 {
-						sd.CurrentAnimations[i].damageInterval = time.Now()
-						if sd.WizardCaster == Monk {
-							sd.Caster.mp -= sd.Damage
-							if sd.Caster.mp <= 0 {
-								sd.Caster.mp = 0
-							}
-						} else {
-							sd.Caster.hp -= sd.Damage
-							if sd.Caster.hp <= 0 {
-								sd.Caster.hp = 0
-								sd.Caster.dead = true
-							}
-						}
-					}
-				}
-			case "smoke-spot":
-				sd.Caster.invisible = true
+	}
+	for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
+		next, kill := sd.CurrentAnimations[i].NextFrame(sd.Frames, sd.SpellSpeed)
+		if kill {
+			if i < len(sd.CurrentAnimations)-1 {
+				copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
 			}
+			sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+			sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+			continue
 		}
+
 		sd.CurrentAnimations[i].step = next
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
@@ -662,7 +766,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		sheet = Pictures["./images/fireball.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 24, 24, 7, 0)
-		mode = SpellCastFireball
+		mode = SpellCastPrimarySkill
 		manaCost = 200
 		damage = 80
 		scalef = .9
@@ -683,7 +787,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		sheet = Pictures["./images/icesnipe.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 64, 64, 30, 0)
-		mode = SpellCastIceSnipe
+		mode = SpellCastSecondarySkill
 		manaCost = 800
 		damage = 210
 		speed = 12
@@ -707,49 +811,83 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		sheet = Pictures["./images/lavaSpot.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 128, 128, 10, 0)
-		mode = SpellCastIceSnipe
+		mode = SpellCastSecondarySkill
 		manaCost = 1200
-		damage = 1
+		damage = 100 //por segundo
 		speed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 3
+		lifespawn = time.Second.Seconds() * 5
 		interval = LavaSpellInterval
 	case "heal-spot":
 		casterType = Monk
 		sheet = Pictures["./images/healingSpot.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 128, 128, 10, 0)
-		mode = SpellCastIceSnipe
+		mode = SpellCastSecondarySkill
 		manaCost = 1200
-		damage = -1
+		damage = -90 //por segundo
 		speed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 3
+		lifespawn = time.Second.Seconds() * 4
 		interval = LavaSpellInterval
+	case "healshot":
+		casterType = Monk
+		sheet = Pictures["./images/healingShot.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		unorderedFrames := getFrames(sheet, 64, 75, 8, 7)
+		for i := range unorderedFrames {
+			frames = append(frames, unorderedFrames[HealingShotFrames[i]])
+		}
+		mode = SpellCastSecondarySkill
+		manaCost = 350
+		damage = -60
+		speed = 15
+		spellspeed = 240
+		scalef = 1
+		spellType = "projectile"
+		lifespawn = time.Second.Seconds()
+		interval = IcesnipeSpellInterval
 	case "mana-spot":
 		casterType = Shaman
 		sheet = Pictures["./images/manaSpot.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 128, 128, 12, 0)
-		mode = SpellCastIceSnipe
+		mode = SpellCastSecondarySkill
 		manaCost = 1200
-		damage = -1
+		damage = -300 //por segundo
 		speed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
-		lifespawn = time.Second.Seconds() * 3
+		lifespawn = time.Second.Seconds() * 6
 		interval = LavaSpellInterval
+	case "manashot":
+		casterType = Shaman
+		sheet = Pictures["./images/manaShot.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		unorderedFrames := getFrames(sheet, 64, 75, 8, 7)
+		for i := range unorderedFrames {
+			frames = append(frames, unorderedFrames[HealingShotFrames[i]])
+		}
+		mode = SpellCastSecondarySkill
+		manaCost = 300
+		damage = 400
+		speed = 15
+		spellspeed = 240
+		scalef = 1
+		spellType = "projectile"
+		lifespawn = time.Second.Seconds()
+		interval = IcesnipeSpellInterval
 	case "smoke-spot":
 		casterType = Sniper
 		sheet = Pictures["./images/smokeSpot.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 128, 128, 12, 0)
-		mode = SpellCastIceSnipe
+		mode = SpellCastSecondarySkill
 		manaCost = 1200
 		damage = 0
 		speed = 12
@@ -758,6 +896,37 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellType = "aoe"
 		lifespawn = time.Second.Seconds() * 3
 		interval = LavaSpellInterval
+	case "rockshot":
+		casterType = Timewreker
+		sheet = Pictures["./images/rockShot.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		unorderedFrames := getFrames(sheet, 64, 64, 8, 8)
+		for i := range unorderedFrames {
+			frames = append(frames, unorderedFrames[RockFrames[i]])
+		}
+		mode = SpellCastSecondarySkill
+		manaCost = 700
+		damage = 130
+		speed = 40
+		spellspeed = 230
+		scalef = .5
+		spellType = "projectile"
+		lifespawn = time.Second.Seconds()
+		interval = IcesnipeSpellInterval
+	case "flash":
+		casterType = Timewreker
+		sheet = Pictures["./images/flashEffect.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 64, 64, 10, 0)
+		mode = SpellCastSecondarySkill
+		manaCost = 900
+		damage = 0
+		speed = 25
+		spellspeed = 0
+		scalef = 1.5
+		spellType = "movement"
+		lifespawn = time.Second.Seconds() * 3
+		interval = FlashSpellInterval
 
 	}
 
@@ -961,16 +1130,17 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 
 				spell := models.SpellMsg{}
 				json.Unmarshal(msg.Payload, &spell)
-
+				now := time.Now()
 				newSpell := &Spell{
 					spellName:      &spell.SpellName,
 					frameNumber:    0.0,
-					last:           time.Now(),
-					projectileLife: time.Now(),
+					last:           now,
+					projectileLife: now,
+					damageInterval: now,
 				}
 
 				target := &Player{}
-				if spell.SpellType != "projectile" && spell.SpellType != "aoe" {
+				if spell.SpellType != "projectile" && spell.SpellType != "aoe" && spell.SpellType != "movement" {
 					if s.ClientID == spell.TargetID {
 						target = p
 					} else {
@@ -1000,11 +1170,15 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						caster := pd.CurrentAnimations[spell.ID]
 						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
 						centerMatrix := pixel.IM
-						if spell.SpellName == "fireball" {
+						switch spell.SpellName {
+						case "fireball":
 							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
-						}
-						if spell.SpellName == "icesnipe" {
+						case "icesnipe":
 							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+						case "healshot", "manashot":
+							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
+						case "rockshot":
+							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
 						}
 						newSpell.caster = spell.ID
 						newSpell.vel = vel
@@ -1019,6 +1193,19 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 					sd := spells.AOE[i]
 					if spell.SpellName == sd.SpellName {
 						newSpell.pos = pixel.V(spell.X, spell.Y)
+						centerMatrix := pixel.IM.Moved(newSpell.pos)
+						newSpell.caster = spell.ID
+						newSpell.matrix = &centerMatrix
+						newSpell.step = sd.Frames[0]
+						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+					}
+				}
+				for i := range spells.Movement {
+					sd := spells.Movement[i]
+					if spell.SpellName == sd.SpellName {
+						caster := pd.CurrentAnimations[spell.ID]
+						newSpell.pos = caster.pos
 						centerMatrix := pixel.IM.Moved(newSpell.pos)
 						newSpell.caster = spell.ID
 						newSpell.matrix = &centerMatrix
@@ -1088,10 +1275,13 @@ type Player struct {
 	lastCast                                                                  time.Time
 	lastCastPrimary                                                           time.Time
 	lastCastSecondary                                                         time.Time
+	inviEffectOut                                                             time.Time
+	lastRootedStart                                                           time.Time
 	drinkingManaPotions                                                       bool
 	drinkingHealthPotions                                                     bool
 	dead                                                                      bool
 	invisible                                                                 bool
+	rooted                                                                    bool
 }
 
 func (p *Player) DrawHealthMana(win *pixelgl.Window) {
@@ -1258,9 +1448,10 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.lastBodyFrame = time.Now()
 	p.lastDeadFrame = time.Now()
 	p.lastDrank = time.Now()
-	p.lastCast = time.Now()
-	p.lastCastPrimary = time.Now()
-	p.lastCastSecondary = time.Now()
+	p.lastCast = time.Now().Add(-time.Second * 2)
+	p.lastCastPrimary = time.Now().Add(-time.Second * 2)
+	p.lastCastSecondary = time.Now().Add(-time.Second * 20)
+	p.inviEffectOut = time.Now().Add(-time.Second * 2)
 
 	p.invisible = false
 	p.headFrames = headFrames
@@ -1393,6 +1584,10 @@ func (p *Player) Update() {
 		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -26)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
+		p.rooted = false
+	}
+	if time.Since(p.lastRootedStart).Seconds() > time.Second.Seconds()*1.5 {
+		p.rooted = false
 	}
 }
 
@@ -1417,7 +1612,10 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 			p.hat.Draw(win, p.hatMatrix)
 		}
 	}
-	p.invisible = false
+	dt := time.Since(p.inviEffectOut).Seconds()
+	if dt >= time.Second.Seconds()*2 {
+		p.invisible = false
+	}
 }
 
 func (p *Player) getNextBodyFrame(dirFrames []int, part []pixel.Rect) pixel.Rect {

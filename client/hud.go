@@ -20,8 +20,8 @@ const (
 	SpellCastDesca
 	SpellCastApoca
 	SpellCastExplo
-	SpellCastFireball
-	SpellCastIceSnipe
+	SpellCastPrimarySkill
+	SpellCastSecondarySkill
 )
 
 type Cursor struct {
@@ -37,7 +37,7 @@ func NewCursor(win *pixelgl.Window) *Cursor {
 }
 
 func (c *Cursor) SetSpellFireballMode() {
-	c.Mode = SpellCastFireball
+	c.Mode = SpellCastPrimarySkill
 }
 func (c *Cursor) SetSpellExploMode() {
 	c.Mode = SpellCastExplo
@@ -109,7 +109,7 @@ const (
 	BearTrapIcon
 	IgniterFireballIcon
 	ImplodeIcon
-	ManaSpenderIcon
+	ManaShotIcon
 	ManaSpotIcon
 )
 
@@ -160,15 +160,15 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 		icons.Load(ArrowshotIcon, 3, "./images/xxxxxxxxxx.png")
 		icons.Load(BearTrapIcon, 4, "./images/xxxxxxxxxxxx.png")
 		break
-	case Igniter:
-		icons.Load(IgniterFireballIcon, 3, "./images/xxxxxxx.png")
-		icons.Load(ImplodeIcon, 4, "./images/xxxxxxxxxx.png")
+	case Timewreker:
+		icons.Load(IgniterFireballIcon, 3, "./images/rockShotIcon.png")
+		icons.Load(ImplodeIcon, 4, "./images/flashEffectIcon.png")
 		break
 	case Monk:
 		icons.Load(HealingballIcon, 3, "./images/healingShotIcon.png")
 		icons.Load(HealSpotIcon, 4, "./images/healingSpotIcon.png")
 	case Shaman:
-		icons.Load(ManaSpenderIcon, 3, "./images/manaSpenderShotIcon.png")
+		icons.Load(ManaShotIcon, 3, "./images/manaShotIcon.png")
 		icons.Load(ManaSpotIcon, 4, "./images/manaSpotIcon.png")
 	}
 
@@ -377,15 +377,15 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	case Hunter:
 		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Moved(icon4pos.Add(pixel.V(14, 15))))
 		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon5pos.Add(pixel.V(15, 14))))
-	case Igniter:
-		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Moved(icon4pos.Add(pixel.V(14, 15))))
-		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon5pos.Add(pixel.V(15, 14))))
+	case Timewreker:
+		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon4pos.Add(pixel.V(14, 15))))
+		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.40).Moved(icon5pos.Add(pixel.V(15, 14))))
 	case Monk:
-		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Moved(icon4pos.Add(pixel.V(14, 15))))
-		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon5pos.Add(pixel.V(15, 14))))
+		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.4).Moved(icon4pos.Add(pixel.V(14, 15))))
+		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.25).Moved(icon5pos.Add(pixel.V(15, 14))))
 	case Shaman:
-		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Moved(icon4pos.Add(pixel.V(14, 15))))
-		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon5pos.Add(pixel.V(15, 14))))
+		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.4).Moved(icon4pos.Add(pixel.V(14, 15))))
+		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.25).Moved(icon5pos.Add(pixel.V(15, 14))))
 	}
 
 	pi.hudText[HealthNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(46, 6))), "%v/%v", pi.player.hp, MaxHealth)

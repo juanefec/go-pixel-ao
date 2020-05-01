@@ -15,7 +15,7 @@ type LoginStep int
 
 const (
 	Name LoginStep = iota
-	Color
+	ChooseWizard
 )
 
 func LoginWindow() (Wizard, error) {
@@ -83,15 +83,18 @@ func LoginWindow() (Wizard, error) {
 			if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
 				if nn == "creagod" {
 					return Wizard{
-						Name: nn,
-						Skin: GodBody,
+						Skin:          GodBody,
+						Name:          nn,
+						Type:          Sniper,
+						SpecialSpells: []string{"icesnipe", "smoke-spot"},
+						Intervals:     []float64{BasicSpellInterval, IcesnipeSpellInterval, LavaSpellInterval},
 					}, nil
 				}
-				loginStep = Color
+				loginStep = ChooseWizard
 			}
 		}
 
-		if loginStep == Color {
+		if loginStep == ChooseWizard {
 			dist := 83.0
 			bPos := pixel.V(dist, 160)
 			rPos := pixel.V(dist*2, 160)
@@ -116,20 +119,20 @@ func LoginWindow() (Wizard, error) {
 						Name:          nn,
 						Skin:          BlueBody,
 						Type:          Monk,
-						SpecialSpells: []string{"healingshot", "heal-spot"},
-						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
+						SpecialSpells: []string{"healshot", "heal-spot"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, LavaSpellInterval},
 					}, nil
 
 				}
-				if x < (dist*2)+halfdist && x > (dist*2)-halfdist && y > 110 && y < 210 {
-					return Wizard{
-						Skin:          RedBody,
-						Name:          nn,
-						Type:          Hunter,
-						SpecialSpells: []string{"arrowshot", "bear-trap"},
-						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
-					}, nil
-				}
+				// if x < (dist*2)+halfdist && x > (dist*2)-halfdist && y > 110 && y < 210 {
+				// 	return Wizard{
+				// 		Skin:          RedBody,
+				// 		Name:          nn,
+				// 		Type:          Hunter,
+				// 		SpecialSpells: []string{"arrowshot", "bear-trap"},
+				// 		Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
+				// 	}, nil
+				// }
 				if x < (dist*3)+halfdist && x > (dist*3)-halfdist && y > 110 && y < 210 {
 					return Wizard{
 						Skin:          BlueArmorBody,
@@ -153,17 +156,17 @@ func LoginWindow() (Wizard, error) {
 						Skin:          TuniDruida,
 						Name:          nn,
 						Type:          Shaman,
-						SpecialSpells: []string{"manaspender", "mana-spot"},
-						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
+						SpecialSpells: []string{"manashot", "mana-spot"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, LavaSpellInterval},
 					}, nil
 				}
 				if x < (dist*6)+halfdist && x > (dist*6)-halfdist && y > 110 && y < 210 {
 					return Wizard{
 						Skin:          TwilightBody,
 						Name:          nn,
-						Type:          Igniter,
-						SpecialSpells: []string{"igniteball", "implode"},
-						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, 0},
+						Type:          Timewreker,
+						SpecialSpells: []string{"rockshot", "flash"},
+						Intervals:     []float64{BasicSpellInterval, FireballSpellInterval, FlashSpellInterval},
 					}, nil
 
 				}

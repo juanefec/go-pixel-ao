@@ -58,7 +58,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
-		if !player.chat.chatting {
+		if !player.chat.chatting && !player.rooted {
 
 			if win.Pressed(KeyLeft) {
 				if latestPressed(KeyLeft, timeMap) {
