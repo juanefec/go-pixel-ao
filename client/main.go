@@ -492,6 +492,10 @@ FBALLS:
 
 }
 
+func (sd *SpellData) ListenEventsAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+
+}
+
 func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	if (sd.Caster.wizard.Type == Shaman && sd.SpellName == "mana-spot") ||
 		(sd.Caster.wizard.Type == Monk && sd.SpellName == "heal-spot") ||
@@ -573,24 +577,30 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 
 			}
 		}
-		if sd.CurrentAnimations[i].caster != s.ClientID && !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
-			dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
-			if dt >= time.Second.Seconds()/100 {
-				sd.CurrentAnimations[i].damageInterval = time.Now()
-				if sd.WizardCaster == Monk {
-					sd.Caster.mp -= sd.Damage
-					if sd.Caster.mp <= 0 {
-						sd.Caster.mp = 0
-					}
-				} else {
-					sd.Caster.hp -= sd.Damage
-					if sd.Caster.hp <= 0 {
-						sd.Caster.hp = 0
-						sd.Caster.dead = true
+		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+			switch sd.SpellName {
+			case "lava-spot":
+				if sd.CurrentAnimations[i].caster != s.ClientID {
+					dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
+					if dt >= time.Second.Seconds()/100 {
+						sd.CurrentAnimations[i].damageInterval = time.Now()
+						if sd.WizardCaster == Monk {
+							sd.Caster.mp -= sd.Damage
+							if sd.Caster.mp <= 0 {
+								sd.Caster.mp = 0
+							}
+						} else {
+							sd.Caster.hp -= sd.Damage
+							if sd.Caster.hp <= 0 {
+								sd.Caster.hp = 0
+								sd.Caster.dead = true
+							}
+						}
 					}
 				}
+			case "smoke-spot":
+				sd.Caster.invisible = true
 			}
-
 		}
 		sd.CurrentAnimations[i].step = next
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
@@ -855,14 +865,15 @@ func (s Skins) BatchClear() {
 }
 func (s Skins) DrawToBatch(p *Player) {
 	p.Update()
-	if !p.dead {
+	if !p.dead && !p.invisible {
 		p.body.Draw(s[p.bodySkin].Batch, p.bodyMatrix)
 		p.bacu.Draw(s[p.staffSkin].Batch, p.bodyMatrix)
 		p.head.Draw(s[p.headSkin].Batch, p.headMatrix)
 		p.hat.Draw(s[p.hatSkin].Batch, p.hatMatrix)
-	} else {
+	} else if p.dead {
 		p.body.Draw(s[Phantom].Batch, p.bodyMatrix)
 		p.head.Draw(s[PhantomHead].Batch, p.headMatrix)
+		p.invisible = false
 	}
 }
 
@@ -1041,9 +1052,11 @@ func (pd *PlayersData) Draw(win *pixelgl.Window) {
 	for _, p := range pd.CurrentAnimations {
 		pd.AnimationsMutex.RUnlock()
 		pd.Skins.DrawToBatch(p)
-		p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, -8)))
-		p.chat.Draw(win, p.pos)
-		p.DrawHealthMana(win)
+		if !p.invisible {
+			p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, -8)))
+			p.chat.Draw(win, p.pos)
+			p.DrawHealthMana(win)
+		}
 		pd.AnimationsMutex.RLock()
 		//player.name.Draw(win, player.nameMatrix)
 	}
@@ -1404,6 +1417,7 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 			p.hat.Draw(win, p.hatMatrix)
 		}
 	}
+	p.invisible = false
 }
 
 func (p *Player) getNextBodyFrame(dirFrames []int, part []pixel.Rect) pixel.Rect {
