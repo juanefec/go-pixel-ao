@@ -37,6 +37,7 @@ var (
 	MaxMana            = 2324
 	MaxHealth          = 347
 	OnTargetSpellRange = 400.0
+	AOESpellRange      = 700.0
 	FlashSpellRange    = 200.0
 	//Spell intervals
 	BasicSpellInterval    = (time.Second.Seconds() / 10) * 9
@@ -583,9 +584,9 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.Interval {
-				sd.Caster.lastCastSecondary = time.Now()
 				mouse := cam.Unproject(win.MousePosition())
-				if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= OnTargetSpellRange {
+				if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= AOESpellRange {
+					sd.Caster.lastCastSecondary = time.Now()
 
 					spell := models.SpellMsg{
 						ID:        s.ClientID,
@@ -880,11 +881,11 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 350
 		damage = -60
-		framesspeed = 40
+		framesspeed = 80
 		spellspeed = 240
 		scalef = 1
 		spellType = "projectile"
-		lifespawn = .25
+		lifespawn = .70
 		interval = IcesnipeSpellInterval
 	case "mana-spot":
 		casterType = Shaman
@@ -911,11 +912,10 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 300
 		damage = 400
-		framesspeed = 15
+		framesspeed = 80
 		spellspeed = 240
 		scalef = 1
 		spellType = "projectile"
-		lifespawn = time.Second.Seconds()
 		interval = IcesnipeSpellInterval
 	case "smoke-spot":
 		casterType = Sniper
@@ -946,8 +946,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 230
 		scalef = .5
 		spellType = "projectile"
-		lifespawn = time.Second.Seconds()
 		interval = IcesnipeSpellInterval
+		lifespawn = .9
 	case "flash":
 		casterType = Timewreker
 		sheet = Pictures["./images/flashEffect.png"]
@@ -960,7 +960,6 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "movement"
-		lifespawn = time.Second.Seconds() * 3
 		interval = FlashSpellInterval
 
 	}
@@ -1018,7 +1017,7 @@ func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect, speed, lifespawn flo
 	a.last = time.Now()
 	a.frameNumber += 21 * dt
 	i := int(a.frameNumber)
-	if i <= len(spellFrames)-1 {
+	if i <= len(spellFrames)-1 && !(pdt > time.Second.Seconds()*lifespawn) {
 		if speed != 0 {
 			vel := pixel.V(1, 1).Rotated(a.vel.Angle()).Rotated(-pixel.V(1, 1).Angle()).Scaled(dt * speed)
 			a.pos = a.pos.Add(vel)
@@ -1137,7 +1136,9 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 
 				players := []*models.PlayerMsg{}
 				json.Unmarshal(msg.Payload, &players)
+
 				for i := 0; i <= len(players)-1; i++ {
+
 					p := players[i]
 					if p.ID != s.ClientID {
 						pd.AnimationsMutex.Lock()
@@ -1199,8 +1200,8 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 								dm := models.DeathMsg{
 									Killed:     s.ClientID,
 									KilledName: sd.Caster.wizard.Name,
-									Killer:     sd.CurrentAnimations[i].caster,
-									KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+									Killer:     spell.ID,
+									KillerName: pd.CurrentAnimations[spell.ID].wizard.Name,
 								}
 								SendDeathEvent(s, dm)
 							}
@@ -1263,10 +1264,12 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				json.Unmarshal(msg.Payload, &chatMsg)
 				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.Message)
 			case models.UpdateRanking:
+				println("reciving ranking")
 				rankingMsg := []models.RankingPosMsg{}
 				json.Unmarshal(msg.Payload, &rankingMsg)
 				Ranking = rankingMsg
 				for i := range Ranking {
+					println(Ranking[i].Name)
 					if Ranking[i].ID == s.ClientID {
 						p.kills = Ranking[i].K
 						p.deaths = Ranking[i].D

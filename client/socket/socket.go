@@ -39,7 +39,7 @@ func NewSocket(ip string, port int) *Socket {
 		Online: true,
 		conn:   &conn,
 		I:      make(chan []byte),
-		O:      make(chan []byte),
+		O:      make(chan []byte, 512),
 	}
 	reader := bufio.NewReader(conn)
 	for s.ClientID == ksuid.Nil {
@@ -87,18 +87,14 @@ func (s *Socket) sender() {
 
 	var w = bufio.NewWriter(*s.conn)
 
-	for {
-		select {
-
-		case message := <-s.O:
-			message = makeMessage(message)
-			w.Write(message)
-			if err := w.Flush(); err != nil {
-				s.Close()
-				return
-			}
-		default:
+	for message := range s.O {
+		message = makeMessage(message)
+		w.Write(message)
+		if err := w.Flush(); err != nil {
+			s.Close()
+			return
 		}
+
 	}
 }
 

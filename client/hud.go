@@ -399,7 +399,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	pi.hudText[ZoomINButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "zi")
 	pi.hudText[ZoomOUTButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 22))), "zo")
 
-	pi.hudText[KDCount].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-50, 6))), "K/D: %v/%v", pi.player.kills, pi.player.deaths)
+	pi.hudText[KDCount].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-80, 10))), "K/D: %v/%v", pi.player.kills, pi.player.deaths)
 
 	pi.hudText[TypingMark].Text.Clear()
 	if pi.player.chat.chatting {
