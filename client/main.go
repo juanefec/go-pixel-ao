@@ -43,7 +43,10 @@ var (
 	FireballSpellInterval = (time.Second.Seconds() / 10) * 7
 	IcesnipeSpellInterval = (time.Second.Seconds() / 10) * 8
 	LavaSpellInterval     = time.Second.Seconds() * 14
-	FlashSpellInterval    = time.Second.Seconds() * 6
+	FlashSpellInterval    = time.Second.Seconds() * 2
+
+	// Ranking
+	Ranking = []models.RankingPosMsg{}
 )
 var (
 	Newline   = []byte{'\n'}
@@ -266,11 +269,20 @@ type Wizard struct {
 
 func Map(v, s1, st1, s2, st2 float64) float64 {
 	newval := (v-s1)/(st1-s1)*(st2-s2) + s2
-	if newval < s2 {
-		return s2
-	}
-	if newval > st2 {
-		return st2
+	if s2 < st2 {
+		if newval < s2 {
+			return s2
+		}
+		if newval > st2 {
+			return st2
+		}
+	} else {
+		if newval > s2 {
+			return s2
+		}
+		if newval < st2 {
+			return st2
+		}
 	}
 	return newval
 }
@@ -520,7 +532,8 @@ FBALLS:
 
 			}
 			if sd.SpellName == "rockshot" {
-				sd.Caster.lastRootedStart = time.Now()
+				rootTime := Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 300, time.Second.Seconds()*1.5, 0)
+				sd.Caster.lastRootedStart = time.Now().Add(time.Duration(int64(time.Second) * int64(rootTime)))
 				sd.Caster.rooted = true
 				sd.Caster.hp -= sd.Damage
 			}
@@ -533,6 +546,13 @@ FBALLS:
 			if sd.Caster.hp <= 0 {
 				sd.Caster.hp = 0
 				sd.Caster.dead = true
+				dm := models.DeathMsg{
+					Killed:     s.ClientID,
+					KilledName: sd.Caster.wizard.Name,
+					Killer:     sd.CurrentAnimations[i].caster,
+					KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+				}
+				SendDeathEvent(s, dm)
 			}
 			if sd.Caster.hp > MaxHealth {
 				sd.Caster.hp = MaxHealth
@@ -616,13 +636,11 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 				dt := time.Since(sd.CurrentAnimations[i].damageInterval).Seconds()
 				sd.CurrentAnimations[i].damageInterval = time.Now()
 				if sd.WizardCaster == Shaman {
-					println(int(float64(sd.Damage) * dt))
 					sd.Caster.mp -= int(float64(sd.Damage) * dt)
 					if sd.Caster.mp > MaxMana {
 						sd.Caster.mp = MaxMana
 					}
 				} else if sd.WizardCaster == Monk {
-					println(int(float64(sd.Damage) * dt))
 					sd.Caster.hp -= int(float64(sd.Damage) * dt)
 					if sd.Caster.hp > MaxHealth {
 						sd.Caster.hp = MaxHealth
@@ -633,6 +651,13 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 						if sd.Caster.hp <= 0 {
 							sd.Caster.hp = 0
 							sd.Caster.dead = true
+							dm := models.DeathMsg{
+								Killed:     s.ClientID,
+								KilledName: sd.Caster.wizard.Name,
+								Killer:     sd.CurrentAnimations[i].caster,
+								KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+							}
+							SendDeathEvent(s, dm)
 						}
 					}
 				}
@@ -649,6 +674,16 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
 
+}
+
+func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
+	dmm, _ := json.Marshal(d)
+	msg := models.Mesg{
+		Type:    models.Death,
+		Payload: dmm,
+	}
+	m, _ := json.Marshal(msg)
+	s.O <- m
 }
 
 func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
@@ -725,7 +760,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 	var frames []pixel.Rect
 	var mode CursorMode
 	var manaCost, damage int
-	var speed float64 = 21
+	var framesspeed float64 = 21
 	var scalef = .8
 	var spellspeed = .0
 	var spellType = "on-target"
@@ -759,7 +794,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastExplo
 		manaCost = 1600
 		damage = 220
-		speed = 17
+		framesspeed = 17
 		scalef = 1.2
 	case "fireball":
 		casterType = DarkWizard
@@ -780,7 +815,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = Normal
 		manaCost = 0
 		damage = 0
-		speed = 16
+		framesspeed = 16
 		scalef = .9
 	case "icesnipe":
 		casterType = Sniper
@@ -790,7 +825,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 800
 		damage = 210
-		speed = 12
+		framesspeed = 12
 		spellspeed = 500
 		spellType = "projectile"
 		interval = IcesnipeSpellInterval
@@ -804,7 +839,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = Normal
 		manaCost = 0
 		damage = 0
-		speed = 25
+		framesspeed = 25
 		scalef = 1.5
 	case "lava-spot":
 		casterType = DarkWizard
@@ -814,7 +849,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 1200
 		damage = 100 //por segundo
-		speed = 12
+		framesspeed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
@@ -828,7 +863,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 1200
 		damage = -90 //por segundo
-		speed = 12
+		framesspeed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
@@ -845,11 +880,11 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 350
 		damage = -60
-		speed = 15
+		framesspeed = 40
 		spellspeed = 240
 		scalef = 1
 		spellType = "projectile"
-		lifespawn = time.Second.Seconds()
+		lifespawn = .25
 		interval = IcesnipeSpellInterval
 	case "mana-spot":
 		casterType = Shaman
@@ -859,7 +894,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 1200
 		damage = -300 //por segundo
-		speed = 12
+		framesspeed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
@@ -876,7 +911,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 300
 		damage = 400
-		speed = 15
+		framesspeed = 15
 		spellspeed = 240
 		scalef = 1
 		spellType = "projectile"
@@ -890,7 +925,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 1200
 		damage = 0
-		speed = 12
+		framesspeed = 12
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "aoe"
@@ -907,7 +942,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 700
 		damage = 130
-		speed = 40
+		framesspeed = 40
 		spellspeed = 230
 		scalef = .5
 		spellType = "projectile"
@@ -921,7 +956,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 900
 		damage = 0
-		speed = 25
+		framesspeed = 25
 		spellspeed = 0
 		scalef = 1.5
 		spellType = "movement"
@@ -938,7 +973,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		SpellType:         spellType,
 		ProjSpeed:         spellspeed,
 		ScaleF:            scalef,
-		SpellSpeed:        speed,
+		SpellSpeed:        framesspeed,
 		Caster:            caster,
 		SpellName:         spell,
 		Frames:            frames,
@@ -1160,6 +1195,15 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						if target.hp <= 0 {
 							target.hp = 0
 							target.dead = true
+							if s.ClientID == spell.TargetID {
+								dm := models.DeathMsg{
+									Killed:     s.ClientID,
+									KilledName: sd.Caster.wizard.Name,
+									Killer:     sd.CurrentAnimations[i].caster,
+									KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+								}
+								SendDeathEvent(s, dm)
+							}
 						}
 						break
 					}
@@ -1218,6 +1262,16 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				chatMsg := models.ChatMsg{}
 				json.Unmarshal(msg.Payload, &chatMsg)
 				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.Message)
+			case models.UpdateRanking:
+				rankingMsg := []models.RankingPosMsg{}
+				json.Unmarshal(msg.Payload, &rankingMsg)
+				Ranking = rankingMsg
+				for i := range Ranking {
+					if Ranking[i].ID == s.ClientID {
+						p.kills = Ranking[i].K
+						p.deaths = Ranking[i].D
+					}
+				}
 			case models.Disconect:
 				m := models.DisconectMsg{}
 				json.Unmarshal(msg.Payload, &m)
@@ -1282,6 +1336,7 @@ type Player struct {
 	dead                                                                      bool
 	invisible                                                                 bool
 	rooted                                                                    bool
+	kills, deaths                                                             int
 }
 
 func (p *Player) DrawHealthMana(win *pixelgl.Window) {
@@ -1586,7 +1641,7 @@ func (p *Player) Update() {
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 		p.rooted = false
 	}
-	if time.Since(p.lastRootedStart).Seconds() > time.Second.Seconds()*1.5 {
+	if time.Since(p.lastRootedStart).Seconds() > time.Second.Seconds()*.5 {
 		p.rooted = false
 	}
 }

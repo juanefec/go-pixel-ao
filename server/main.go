@@ -61,13 +61,63 @@ func ServeGame(conn *net.Conn, game *Game) {
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
-	//go game.ClientUpdater(client)
+	go game.RankingUpdater(client)
 
 }
 
 var (
 	Newline = []byte{'\n'}
 )
+
+type Ranking []*models.RankingPosMsg
+
+func (r Ranking) ToMsg() []byte {
+	bs, _ := json.Marshal(r)
+	msg := models.Mesg{
+		Type:    models.UpdateRanking,
+		Payload: bs,
+	}
+	m, _ := json.Marshal(msg)
+	return m
+}
+
+func (r Ranking) Update(payload json.RawMessage) {
+	d := models.DeathMsg{}
+	err := json.Unmarshal(payload, &d)
+	if err != nil {
+		return
+	}
+	killerExist := false
+	killedExist := false
+	for i := range r {
+		if r[i].ID == d.Killer {
+			r[i].K++
+			killerExist = true
+		}
+		if r[i].ID == d.Killed {
+			r[i].D++
+			killedExist = true
+		}
+	}
+	if !killedExist {
+		rr := &models.RankingPosMsg{
+			ID:   d.Killed,
+			Name: d.KilledName,
+			K:    0,
+			D:    1,
+		}
+		r = append(r, rr)
+	}
+	if !killerExist {
+		rr := &models.RankingPosMsg{
+			ID:   d.Killer,
+			Name: d.KillerName,
+			K:    1,
+			D:    0,
+		}
+		r = append(r, rr)
+	}
+}
 
 type Client struct {
 	ID        ksuid.KSUID
@@ -115,10 +165,14 @@ func (c *Client) readPump() {
 				Event:   msg.Type,
 				Payload: msg.Payload}
 			break
+		case models.Death:
+			c.game.Ranking.Update(msg.Payload)
+			break
 		}
-		data = bytes.Buffer{}
-
 	}
+
+	data = bytes.Buffer{}
+
 }
 
 func (c *Client) writePump() {
@@ -153,6 +207,7 @@ type BroadcastEvent struct {
 
 type Game struct {
 	Online         int
+	Ranking        Ranking
 	Players        map[ksuid.KSUID]*models.PlayerMsg
 	Pmutex         *sync.RWMutex
 	clientsUpdate  chan BroadcastEvent
@@ -165,6 +220,7 @@ type Game struct {
 func NewGame() *Game {
 	return &Game{
 		Online:         0,
+		Ranking:        make(Ranking, 0),
 		Players:        make(map[ksuid.KSUID]*models.PlayerMsg),
 		clientsUpdate:  make(chan BroadcastEvent),
 		Pmutex:         &sync.RWMutex{},
@@ -218,8 +274,8 @@ func (g *Game) Run() {
 					Event:   models.Disconect,
 					Payload: payload,
 				}
-				//client.endupdate <- struct{}{}
-				close(client.send)
+				client.endupdate <- struct{}{}
+
 				delete(g.Players, client.ID)
 			}
 
@@ -230,15 +286,15 @@ func (g *Game) Run() {
 	}
 }
 
-func (g *Game) ClientUpdater(c *Client) {
-	updater := time.Tick(time.Second / 30)
+func (g *Game) RankingUpdater(c *Client) {
+	updater := time.Tick(time.Second * 10)
 ULOOP:
 	for {
 		select {
 		case <-c.endupdate:
 			break ULOOP
 		case <-updater:
-			c.send <- g.UpdateClient(c)
+			c.send <- g.Ranking.ToMsg()
 
 		}
 

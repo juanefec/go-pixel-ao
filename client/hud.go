@@ -91,6 +91,7 @@ const (
 	FPSCount
 	ZoomINButton
 	ZoomOUTButton
+	KDCount
 )
 
 type IconType int
@@ -140,7 +141,7 @@ type PlayerInfo struct {
 	skillIcons  Icons
 }
 
-func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
+func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo {
 	pi := PlayerInfo{}
 	icons := make(Icons, 5)
 	icons.Load(ApocaIcon, 0, "./images/apocaIcon.png")
@@ -172,7 +173,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 		icons.Load(ManaSpotIcon, 4, "./images/manaSpotIcon.png")
 	}
 
-	hudProps := make([]*TextProp, 8)
+	hudProps := make([]*TextProp, 9)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, MaxHealth)
 	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, MaxMana)
@@ -182,6 +183,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData) *PlayerInfo {
 	hudProps[FPSCount] = NewTextProp(basicAtlas, "FPS: %v", 0)
 	hudProps[ZoomINButton] = NewTextProp(basicAtlas, "in")
 	hudProps[ZoomOUTButton] = NewTextProp(basicAtlas, "out")
+	hudProps[KDCount] = NewTextProp(basicAtlas, "K/D: %v/%v", player.kills, player)
 
 	pi.player = player
 	pi.playersData = pd
@@ -396,11 +398,15 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	pi.hudText[PosXY].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -40))), "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
 	pi.hudText[ZoomINButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "zi")
 	pi.hudText[ZoomOUTButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 22))), "zo")
+
+	pi.hudText[KDCount].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-50, 6))), "K/D: %v/%v", pi.player.kills, pi.player.deaths)
+
 	pi.hudText[TypingMark].Text.Clear()
 	if pi.player.chat.chatting {
 		pi.hudText[TypingMark].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-80, -10))), "Typing...")
 	}
 
+	// Zoom Button
 	if win.JustPressed(pixelgl.MouseButtonLeft) {
 		ix, iy := zoomTogglePos.Add(pixel.V(9, 9)).XY()
 		ox, oy := zoomTogglePos.Add(pixel.V(9, 24)).XY()

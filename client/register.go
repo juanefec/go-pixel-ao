@@ -30,7 +30,7 @@ func LoginWindow() (Wizard, error) {
 
 	choose := text.New(pixel.V(0, 0), atlas)
 	choose.Color = colornames.Darkgray
-	choose.WriteString("Choose skin:\n")
+	choose.WriteString("Choose wizard:\n")
 
 	redSkin := Pictures["./images/bodyRedIcon.png"]
 	redIcon := pixel.NewSprite(redSkin, redSkin.Bounds())

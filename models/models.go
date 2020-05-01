@@ -18,11 +18,13 @@ const (
 	UpdateServer
 	Spell
 	Chat
+	Death
+	UpdateRanking
 	Disconect
 )
 
 func (d Event) String() string {
-	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Chat", "Disconect"}[d]
+	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Chat", "Death", "UpdateRanking", "Disconect"}[d]
 }
 
 type Mesg struct {
@@ -78,4 +80,18 @@ type ChatMsg struct {
 	ID      ksuid.KSUID `json:"id"`
 	Name    string      `json:"name"`
 	Message string      `json:"message"`
+}
+
+type DeathMsg struct {
+	Killed     ksuid.KSUID `json:"killed_id"`
+	KilledName string      `json:"killed_name"`
+	Killer     ksuid.KSUID `json:"killer_id"`
+	KillerName string      `json:"killer_name"`
+}
+
+type RankingPosMsg struct {
+	Name string      `json:"name"`
+	ID   ksuid.KSUID `json:"id"`
+	K    int         `json:"kills"`
+	D    int         `json:"deaths"`
 }
