@@ -283,6 +283,7 @@ func (g *Game) Run() {
 						g.Ranking[i] = g.Ranking[len(g.Ranking)-1]
 						g.Ranking[len(g.Ranking)-1] = nil
 						g.Ranking = g.Ranking[:len(g.Ranking)-1]
+						break
 					}
 				}
 				client.endupdate <- struct{}{}
