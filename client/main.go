@@ -1668,7 +1668,7 @@ func (p *Player) Update() {
 		}
 		if p.drinkingManaPotions && !p.drinkingHealthPotions {
 			if dt > second/4 {
-				p.mp += 117
+				p.mp += p.maxmp * 0.05
 				if p.mp > p.maxmp {
 					p.mp = p.maxmp
 				}

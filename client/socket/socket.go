@@ -48,6 +48,7 @@ func NewSocket(ip string, port int) *Socket {
 
 		err = s.ClientID.UnmarshalBinary(data)
 		if err != nil {
+			log.Println(data)
 			log.Println(err)
 		}
 		if s.ClientID != ksuid.Nil {

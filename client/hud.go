@@ -188,8 +188,8 @@ func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo 
 
 	hudProps := make([]*TextProp, 20)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
-	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, MaxHealth)
-	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, MaxMana)
+	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, player.maxhp)
+	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, player.maxmp)
 	hudProps[OnlineCount] = NewTextProp(basicAtlas, "Typing...")
 	hudProps[PosXY] = NewTextProp(basicAtlas, "Online: %v", pd.Online+1)
 	hudProps[TypingMark] = NewTextProp(basicAtlas, "X: %v\nY: %v", player.pos.X, player.pos.Y)
@@ -263,13 +263,13 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	)
 	info.Rectangle(4)
 	info.Color = pixel.RGB(1, 0, 0)
-	hval := Map(float64(pi.player.hp), 0, float64(MaxHealth), 0, 150)
+	hval := Map(float64(pi.player.hp), 0, float64(pi.player.maxhp), 0, 150)
 	info.Push(
 		getRectangleVecs(topRigthInfoPos.Add(pixel.V(0, 0)), pixel.V(hval, 20))...,
 	)
 	info.Rectangle(0)
 	info.Color = pixel.RGB(0, 0, 1)
-	mval := Map(float64(pi.player.mp), 0, float64(MaxMana), 0, 150)
+	mval := Map(float64(pi.player.mp), 0, float64(pi.player.maxmp), 0, 150)
 	info.Push(
 		getRectangleVecs(topRigthInfoPos.Add(pixel.V(0, -30)), pixel.V(mval, 20))...,
 	)
@@ -414,8 +414,8 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.25).Moved(icon5pos.Add(pixel.V(15, 14))))
 	}
 
-	pi.hudText[HealthNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(46, 6))), "%v/%v", int(pi.player.hp), int(MaxHealth))
-	pi.hudText[ManaNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(40, -25))), "%v/%v", int(pi.player.mp), int(MaxMana))
+	pi.hudText[HealthNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(46, 6))), "%v/%v", int(pi.player.hp), int(pi.player.maxhp))
+	pi.hudText[ManaNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(40, -25))), "%v/%v", int(pi.player.mp), int(pi.player.maxmp))
 	topLeftInfoPos := cam.Unproject(pixel.V(30, winSize.Y-50))
 	pi.hudText[OnlineCount].Draw(win, pixel.IM.Moved(topLeftInfoPos).Scaled(topLeftInfoPos, 2), "Online: %v", pi.playersData.Online+1)
 	pi.hudText[FPSCount].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -20))), "FPS: %v", pi.nfps)
