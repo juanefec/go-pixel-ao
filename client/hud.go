@@ -447,7 +447,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 			myTop = HudComponent(rankLen - 1 + int(Ranking1))
 		}
 		c := 1.0
-		topLeftRankingPos := centerBasedPos.Add(pixel.V(-129, 140))
+		topLeftRankingPos := centerBasedPos.Add(pixel.V(-133, 140))
 		pi.hudText[RankingTitle].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(80, -5))), pi.hudText[RankingTitle].SText)
 		for i := Ranking1; i <= myTop; i++ {
 			pi.hudText[i].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(0, -c*25))), "%v   | %v| %v|", PadRight(fmt.Sprintf("%v: %v", i-Ranking1+1, strings.TrimSpace(Ranking[i-Ranking1].Name)), " ", 23), PadRight(fmt.Sprint(Ranking[i-Ranking1].K), " ", 4), PadRight(fmt.Sprint(Ranking[i-Ranking1].D), " ", 4))
