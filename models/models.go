@@ -20,6 +20,7 @@ const (
 	Chat
 	Death
 	UpdateRanking
+	ConfirmIDReception
 	Disconect
 )
 
