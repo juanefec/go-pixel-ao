@@ -1603,7 +1603,7 @@ func (p *Player) Update() {
 		dt := time.Since(p.lastDrank).Seconds()
 		second := time.Second.Seconds()
 		if p.drinkingHealthPotions && !p.drinkingManaPotions {
-			if dt > second/3.2 {
+			if dt > second/3.3 {
 				p.hp += 30
 				if p.hp > MaxHealth {
 					p.hp = MaxHealth
