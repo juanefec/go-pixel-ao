@@ -508,8 +508,8 @@ FBALLS:
 					p.hp = 0
 					p.dead = true
 				}
-				if p.hp > MaxHealth {
-					p.hp = MaxHealth
+				if p.hp > p.maxhp {
+					p.hp = p.maxhp
 				}
 				continue FBALLS
 			}
@@ -564,8 +564,8 @@ FBALLS:
 				}
 				SendDeathEvent(s, dm)
 			}
-			if sd.Caster.hp > MaxHealth {
-				sd.Caster.hp = MaxHealth
+			if sd.Caster.hp > sd.Caster.maxhp {
+				sd.Caster.hp = sd.Caster.maxhp
 			}
 			if sd.Caster.mp < 0 {
 				sd.Caster.mp = 0
@@ -647,13 +647,13 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 				sd.CurrentAnimations[i].damageInterval = time.Now()
 				if sd.WizardCaster == Shaman {
 					sd.Caster.mp -= float64(sd.Damage) * dt
-					if sd.Caster.mp > MaxMana {
-						sd.Caster.mp = MaxMana
+					if sd.Caster.mp > sd.Caster.maxmp {
+						sd.Caster.mp = sd.Caster.maxmp
 					}
 				} else if sd.WizardCaster == Monk {
 					sd.Caster.hp -= float64(sd.Damage) * dt
-					if sd.Caster.hp > MaxHealth {
-						sd.Caster.hp = MaxHealth
+					if sd.Caster.hp > sd.Caster.maxhp {
+						sd.Caster.hp = sd.Caster.maxhp
 					}
 				} else {
 					if sd.CurrentAnimations[i].caster != s.ClientID {
@@ -1365,7 +1365,7 @@ type Player struct {
 	bodyFrame, headFrame, bacuFrame, hatFrame                                 pixel.Rect
 	bodySkin, headSkin, hatSkin, staffSkin                                    SkinType
 	head, body, bacu, hat                                                     *pixel.Sprite
-	hp, mp                                                                    float64 // health/mana points
+	hp, mp, maxhp, maxmp                                                      float64 // health/mana points
 	wizard                                                                    *Wizard
 	chat                                                                      Chat
 	pos                                                                       pixel.Vec
@@ -1405,7 +1405,7 @@ func (p *Player) DrawHealthMana(win *pixelgl.Window) {
 	info.Rectangle(2)
 
 	info.Color = pixel.RGB(1, 0, 0)
-	hval := Map(float64(p.hp), 0, float64(MaxHealth), 0, 32)
+	hval := Map(float64(p.hp), 0, float64(p.maxhp), 0, 32)
 	info.Push(
 		infoPos.Add(pixel.V(0, 0)),
 		infoPos.Add(pixel.V(hval, 0)),
@@ -1575,12 +1575,14 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
 	p.pos = pixel.V(2000, 2600)
+	p.maxmp = MaxMana
+	p.maxhp = MaxHealth
 	if name == "   creagod   " {
-		MaxMana = MaxMana * 4
-		MaxHealth = MaxHealth * 4
+		p.maxmp = MaxMana * 4
+		p.maxhp = MaxHealth * 4
 	}
-	p.mp = MaxMana
-	p.hp = MaxHealth
+	p.mp = p.maxmp
+	p.hp = p.maxhp
 
 	return *p
 }
@@ -1658,8 +1660,8 @@ func (p *Player) Update() {
 		if p.drinkingHealthPotions && !p.drinkingManaPotions {
 			if dt > second/3.3 {
 				p.hp += 30
-				if p.hp > MaxHealth {
-					p.hp = MaxHealth
+				if p.hp > p.maxhp {
+					p.hp = p.maxhp
 				}
 				p.lastDrank = time.Now()
 			}
@@ -1667,8 +1669,8 @@ func (p *Player) Update() {
 		if p.drinkingManaPotions && !p.drinkingHealthPotions {
 			if dt > second/4 {
 				p.mp += 117
-				if p.mp > MaxMana {
-					p.mp = MaxMana
+				if p.mp > p.maxmp {
+					p.mp = p.maxmp
 				}
 				p.lastDrank = time.Now()
 			}
@@ -1782,8 +1784,8 @@ func (r *Resu) Draw(win *pixelgl.Window, cam pixel.Matrix, p *Player) {
 		mouse := cam.Unproject(win.MousePosition())
 		if r.OnMe(mouse) && p.dead {
 			p.dead = false
-			p.hp = MaxHealth
-			p.mp = MaxMana
+			p.hp = p.maxhp
+			p.mp = p.maxmp
 		}
 	}
 	r.HeadSprite.Draw(win, pixel.IM.Moved(r.PosHead))
