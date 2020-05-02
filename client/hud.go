@@ -197,7 +197,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo 
 	hudProps[ZoomINButton] = NewTextProp(basicAtlas, "in")
 	hudProps[ZoomOUTButton] = NewTextProp(basicAtlas, "out")
 	hudProps[KDCount] = NewTextProp(basicAtlas, "K/D: %v/%v", player.kills, player)
-	hudProps[RankingTitle] = NewTextProp(basicAtlas, "Top 10 K/D        K   D")
+	hudProps[RankingTitle] = NewTextProp(basicAtlas, "Top 10 K/D        K    D")
 	hudProps[Ranking1] = NewTextProp(basicAtlas, "1: %v 	| %v | %v", "-", 0, 0)
 	hudProps[Ranking2] = NewTextProp(basicAtlas, "2: %v 	| %v | %v", "-", 0, 0)
 	hudProps[Ranking3] = NewTextProp(basicAtlas, "3: %v 	| %v | %v", "-", 0, 0)
@@ -447,10 +447,10 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 			myTop = HudComponent(rankLen - 1 + int(Ranking1))
 		}
 		c := 1.0
-		topLeftRankingPos := centerBasedPos.Add(pixel.V(-120, 140))
+		topLeftRankingPos := centerBasedPos.Add(pixel.V(-125, 140))
 		pi.hudText[RankingTitle].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(80, -5))), pi.hudText[RankingTitle].SText)
 		for i := Ranking1; i <= myTop; i++ {
-			pi.hudText[i].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(0, -c*25))), "%v   |%v | %v|", PadRight(fmt.Sprintf("%v: %v", i-Ranking1+1, strings.TrimSpace(Ranking[i-Ranking1].Name)), " ", 24), PadLeft(fmt.Sprint(Ranking[i-Ranking1].K), " ", 4), PadRight(fmt.Sprint(Ranking[i-Ranking1].D), " ", 4))
+			pi.hudText[i].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(0, -c*25))), "%v   | %v| %v|", PadRight(fmt.Sprintf("%v: %v", i-Ranking1+1, strings.TrimSpace(Ranking[i-Ranking1].Name)), " ", 23), PadRight(fmt.Sprint(Ranking[i-Ranking1].K), " ", 4), PadRight(fmt.Sprint(Ranking[i-Ranking1].D), " ", 4))
 			c++
 		}
 
