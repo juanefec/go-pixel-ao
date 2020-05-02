@@ -81,7 +81,7 @@ func LoginWindow() (Wizard, error) {
 				}
 			}
 			if win.JustPressed(pixelgl.KeyEnter) || win.Repeated(pixelgl.KeyEnter) {
-				if nn == "creagod" {
+				if nn == "   creagod   " {
 					return Wizard{
 						Skin:          GodBody,
 						Name:          nn,
