@@ -63,10 +63,13 @@ func ServeGame(conn *net.Conn, game *Game) {
 	go client.writePump()
 	go client.readPump()
 	go game.RankingUpdater(client)
-
+	lastSent := time.Now()
 	//Verify ID reception
 	for !client.hasRecivedID {
-		client.game.register <- client
+		dt := time.Since(lastSent).Seconds()
+		if dt > time.Second.Seconds() {
+			client.game.register <- client
+		}
 	}
 }
 
@@ -178,6 +181,7 @@ func (c *Client) readPump() {
 			c.game.Ranking.Update(msg.Payload)
 			break
 		case models.ConfirmIDReception:
+			println("recived confimation of id reception ahre")
 			c.hasRecivedID = true
 			break
 		}
