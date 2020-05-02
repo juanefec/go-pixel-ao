@@ -56,8 +56,7 @@ func SocketServer(port int) {
 // ServeGame handles websocket requests from the peer.
 func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
-	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 512), endupdate: make(chan struct{})}
-	client.game.register <- client
+	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 512), endupdate: make(chan struct{}), hasRecivedID: false}
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
@@ -65,6 +64,10 @@ func ServeGame(conn *net.Conn, game *Game) {
 	go client.readPump()
 	go game.RankingUpdater(client)
 
+	//Verify ID reception
+	for !client.hasRecivedID {
+		client.game.register <- client
+	}
 }
 
 var (
@@ -125,11 +128,12 @@ func (r *Ranking) Update(payload json.RawMessage) {
 }
 
 type Client struct {
-	ID        ksuid.KSUID
-	game      *Game
-	conn      *net.Conn
-	send      chan []byte
-	endupdate chan struct{}
+	ID           ksuid.KSUID
+	game         *Game
+	conn         *net.Conn
+	send         chan []byte
+	endupdate    chan struct{}
+	hasRecivedID bool
 }
 
 func (c *Client) readPump() {
@@ -172,6 +176,9 @@ func (c *Client) readPump() {
 			break
 		case models.Death:
 			c.game.Ranking.Update(msg.Payload)
+			break
+		case models.ConfirmIDReception:
+			c.hasRecivedID = true
 			break
 		}
 		data = bytes.Buffer{}
