@@ -56,7 +56,7 @@ func SocketServer(port int) {
 // ServeGame handles websocket requests from the peer.
 func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
-	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 512), endupdate: make(chan struct{}), hasRecivedID: false}
+	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 1024), endupdate: make(chan struct{}), hasRecivedID: false}
 
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
@@ -68,6 +68,7 @@ func ServeGame(conn *net.Conn, game *Game) {
 	for !client.hasRecivedID {
 		dt := time.Since(lastSent).Seconds()
 		if dt > time.Second.Seconds() {
+			lastSent = time.Now()
 			client.game.register <- client
 		}
 	}
