@@ -92,6 +92,11 @@ const (
 	ZoomINButton
 	ZoomOUTButton
 	KDCount
+	Ranking1
+	Ranking2
+	Ranking3
+	Ranking4
+	Ranking5
 )
 
 type IconType int
@@ -139,6 +144,7 @@ type PlayerInfo struct {
 	hudText     []*TextProp
 	nfps        int
 	skillIcons  Icons
+	//ranking     []*models.RankingPosMsg
 }
 
 func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo {
@@ -173,7 +179,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo 
 		icons.Load(ManaSpotIcon, 4, "./images/manaSpotIcon.png")
 	}
 
-	hudProps := make([]*TextProp, 9)
+	hudProps := make([]*TextProp, 14)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, MaxHealth)
 	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, MaxMana)
@@ -184,6 +190,11 @@ func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo 
 	hudProps[ZoomINButton] = NewTextProp(basicAtlas, "in")
 	hudProps[ZoomOUTButton] = NewTextProp(basicAtlas, "out")
 	hudProps[KDCount] = NewTextProp(basicAtlas, "K/D: %v/%v", player.kills, player)
+	hudProps[Ranking1] = NewTextProp(basicAtlas, "1: %v 	| %v | %v", "-", 0, 0)
+	hudProps[Ranking2] = NewTextProp(basicAtlas, "2: %v 	| %v | %v", "-", 0, 0)
+	hudProps[Ranking3] = NewTextProp(basicAtlas, "3: %v 	| %v | %v", "-", 0, 0)
+	hudProps[Ranking4] = NewTextProp(basicAtlas, "4: %v 	| %v | %v", "-", 0, 0)
+	hudProps[Ranking5] = NewTextProp(basicAtlas, "5: %v 	| %v | %v", "-", 0, 0)
 
 	pi.player = player
 	pi.playersData = pd
@@ -381,7 +392,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon5pos.Add(pixel.V(15, 14))))
 	case Timewreker:
 		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.45).Moved(icon4pos.Add(pixel.V(14, 15))))
-		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.40).Moved(icon5pos.Add(pixel.V(15, 14))))
+		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Moved(icon5pos.Add(pixel.V(15, 15))))
 	case Monk:
 		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.4).Moved(icon4pos.Add(pixel.V(14, 15))))
 		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.25).Moved(icon5pos.Add(pixel.V(15, 14))))
@@ -404,6 +415,31 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	pi.hudText[TypingMark].Text.Clear()
 	if pi.player.chat.chatting {
 		pi.hudText[TypingMark].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-80, -10))), "Typing...")
+	}
+
+	// Draw tab ranking status
+	if win.Pressed(pixelgl.KeyTab) {
+		rankingInfo := imdraw.New(nil)
+		rankingInfo.Color = color.RGBA{5, 10, 30, 70}
+		rankingInfo.EndShape = imdraw.SharpEndShape
+		centerBasedPos := cam.Unproject(win.Bounds().Center())
+		rankingInfo.Push(
+			getRectangleVecs(centerBasedPos.Add(pixel.V(-150, -150)), pixel.V(300, 300))...,
+		)
+		rankingInfo.Rectangle(0)
+		rankingInfo.Draw(win)
+		rankLen := len(Ranking)
+		myTop := Ranking5
+		if rankLen < 5 {
+			myTop = HudComponent(rankLen - 1 + int(Ranking1))
+		}
+		c := 1.0
+		topLeftRankingPos := centerBasedPos.Add(pixel.V(-100, 150))
+		for i := Ranking1; i <= myTop; i++ {
+			pi.hudText[i].Draw(win, pixel.IM.Moved(topLeftRankingPos.Add(pixel.V(0, -c*50))), "%v: %v 	| %v | %v |", i-Ranking1+1, Ranking[i-Ranking1].Name, Ranking[i-Ranking1].K, Ranking[i-Ranking1].D)
+			c++
+		}
+
 	}
 
 	// Zoom Button

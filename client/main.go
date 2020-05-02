@@ -553,7 +553,7 @@ FBALLS:
 					Killed:     s.ClientID,
 					KilledName: sd.Caster.wizard.Name,
 					Killer:     sd.CurrentAnimations[i].caster,
-					KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+					KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].sname,
 				}
 				SendDeathEvent(s, dm)
 			}
@@ -658,7 +658,7 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 								Killed:     s.ClientID,
 								KilledName: sd.Caster.wizard.Name,
 								Killer:     sd.CurrentAnimations[i].caster,
-								KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].wizard.Name,
+								KillerName: pd.CurrentAnimations[sd.CurrentAnimations[i].caster].sname,
 							}
 							SendDeathEvent(s, dm)
 						}
@@ -1204,7 +1204,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 									Killed:     s.ClientID,
 									KilledName: sd.Caster.wizard.Name,
 									Killer:     spell.ID,
-									KillerName: pd.CurrentAnimations[spell.ID].wizard.Name,
+									KillerName: pd.CurrentAnimations[spell.ID].sname,
 								}
 								SendDeathEvent(s, dm)
 							}
