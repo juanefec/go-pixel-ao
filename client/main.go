@@ -360,40 +360,42 @@ type SpellData struct {
 
 func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	dt := time.Since(sd.Caster.lastCast).Seconds()
-	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
+	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
 		if dt >= sd.Interval {
-			sd.Caster.lastCast = time.Now()
-			mouse := cam.Unproject(win.MousePosition())
-			if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= OnTargetSpellRange {
-				for key := range pd.CurrentAnimations {
+			if sd.Caster.mp >= sd.ManaCost {
+				sd.Caster.lastCast = time.Now()
+				mouse := cam.Unproject(win.MousePosition())
+				if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= OnTargetSpellRange {
+					for key := range pd.CurrentAnimations {
 
-					if !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastPrimarySkill && pd.CurrentAnimations[key].OnMe(mouse) {
-						spell := models.SpellMsg{
-							ID:        s.ClientID,
-							SpellType: sd.SpellType,
-							SpellName: sd.SpellName,
-							TargetID:  key,
-							Name:      sd.Caster.sname,
-							X:         mouse.X,
-							Y:         mouse.Y,
+						if !pd.CurrentAnimations[key].dead && cursor.Mode != SpellCastPrimarySkill && pd.CurrentAnimations[key].OnMe(mouse) {
+							spell := models.SpellMsg{
+								ID:        s.ClientID,
+								SpellType: sd.SpellType,
+								SpellName: sd.SpellName,
+								TargetID:  key,
+								Name:      sd.Caster.sname,
+								X:         mouse.X,
+								Y:         mouse.Y,
+							}
+							paylaod, _ := json.Marshal(spell)
+							s.O <- models.NewMesg(models.Spell, paylaod)
+
+							sd.Caster.mp -= sd.ManaCost
+							newSpell := &Spell{
+								target:      pd.CurrentAnimations[key],
+								spellName:   &sd.SpellName,
+								step:        sd.Frames[0],
+								frameNumber: 0.0,
+								matrix:      &pd.CurrentAnimations[key].headMatrix,
+								last:        time.Now(),
+							}
+
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+
+							break
 						}
-						paylaod, _ := json.Marshal(spell)
-						s.O <- models.NewMesg(models.Spell, paylaod)
-
-						sd.Caster.mp -= sd.ManaCost
-						newSpell := &Spell{
-							target:      pd.CurrentAnimations[key],
-							spellName:   &sd.SpellName,
-							step:        sd.Frames[0],
-							frameNumber: 0.0,
-							matrix:      &pd.CurrentAnimations[key].headMatrix,
-							last:        time.Now(),
-						}
-
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-
-						break
 					}
 				}
 			}
@@ -529,7 +531,12 @@ FBALLS:
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 				}
 				if "blood-explo" == effects[i].SpellName && sd.SpellName == "icesnipe" {
-					sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage))
+					if pd.CurrentAnimations[casterID].sname == "   creagod   " {
+						sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 600, 15, float64(sd.Damage)*3)
+					} else {
+						sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage))
+					}
+
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 				}
 
@@ -690,6 +697,39 @@ func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
 }
 
 func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+	if sd.Caster.sname == "   creagod   " {
+		if win.JustPressed(pixelgl.KeyLeftShift) {
+			mouse := cam.Unproject(win.MousePosition())
+			spell := models.SpellMsg{
+				ID:        s.ClientID,
+				SpellType: sd.SpellType,
+				SpellName: sd.SpellName,
+				TargetID:  ksuid.Nil,
+				Name:      sd.Caster.sname,
+				X:         mouse.X,
+				Y:         mouse.Y,
+			}
+			paylaod, _ := json.Marshal(spell)
+			s.O <- models.NewMesg(models.Spell, paylaod)
+
+			spellMatrix := pixel.IM.Moved(sd.Caster.pos)
+			newSpell := &Spell{
+				pos:         sd.Caster.pos,
+				spellName:   &sd.SpellName,
+				step:        sd.Frames[0],
+				frameNumber: 0.0,
+				matrix:      &spellMatrix,
+				last:        time.Now(),
+				caster:      s.ClientID,
+			}
+
+			newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+			sd.Caster.pos = mouse
+
+		}
+	}
+
 	if sd.Caster.wizard.Type == Timewreker && sd.SpellName == "flash" {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
@@ -826,12 +866,16 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
 		frames = getFrames(sheet, 64, 64, 30, 0)
 		mode = SpellCastSecondarySkill
-		manaCost = 800
 		damage = 210
 		framesspeed = 12
 		spellspeed = 500
 		spellType = "projectile"
+		manaCost = 800
 		interval = IcesnipeSpellInterval
+		if caster.sname == "   creagod   " {
+			manaCost = 100
+			interval = IcesnipeSpellInterval / 4
+		}
 	case "blood-explo":
 		sheet = Pictures["./images/blood.png"]
 		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
@@ -1179,7 +1223,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				}
 
 				target := &Player{}
-				if spell.SpellType != "projectile" && spell.SpellType != "aoe" && spell.SpellType != "movement" {
+				if spell.SpellType == "on-target" {
 					if s.ClientID == spell.TargetID {
 						target = p
 					} else {

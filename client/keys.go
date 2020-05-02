@@ -148,7 +148,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			player.drinkingHealthPotions = false
 		}
 
-		if player.sname == "creagod" && win.Pressed(pixelgl.KeyLeftShift) {
+		if player.sname == "   creagod   " && win.Pressed(pixelgl.KeyLeftShift) {
 			if win.JustPressed(pixelgl.MouseButtonLeft) {
 				if dt := time.Since(tpTime).Seconds(); dt > time.Second.Seconds()/6 {
 					tpTime = time.Now()

@@ -87,7 +87,7 @@ func LoginWindow() (Wizard, error) {
 						Name:          nn,
 						Type:          Sniper,
 						SpecialSpells: []string{"icesnipe", "smoke-spot"},
-						Intervals:     []float64{BasicSpellInterval, IcesnipeSpellInterval, LavaSpellInterval},
+						Intervals:     []float64{BasicSpellInterval, IcesnipeSpellInterval / 4, LavaSpellInterval},
 					}, nil
 				}
 				loginStep = ChooseWizard
