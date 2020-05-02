@@ -978,6 +978,10 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellType = "aoe"
 		lifespawn = 3
 		interval = LavaSpellInterval
+		if caster.sname == "   creagod   " {
+			manaCost = 100
+			interval = LavaSpellInterval / 8
+		}
 	case "rockshot":
 		casterType = Timewreker
 		sheet = Pictures["./images/rockShot.png"]
@@ -1571,8 +1575,13 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
 	p.pos = pixel.V(2000, 2600)
+	if name == "   creagod   " {
+		MaxMana = MaxMana * 4
+		MaxHealth = MaxHealth * 4
+	}
 	p.mp = MaxMana
 	p.hp = MaxHealth
+
 	return *p
 }
 

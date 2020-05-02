@@ -45,13 +45,16 @@ func NewSocket(ip string, port int) *Socket {
 	reader := bufio.NewReader(conn)
 	for s.ClientID == ksuid.Nil {
 		data, _, _ := reader.ReadLine()
-		if len(data) == 20 {
-			_ = s.ClientID.UnmarshalBinary(data)
-			if s.ClientID != ksuid.Nil {
-				s.O <- models.NewMesg(models.ConfirmIDReception, nil)
-				log.Printf("Client ID: %v", s.ClientID.String())
-			}
+
+		err = s.ClientID.UnmarshalBinary(data)
+		if err != nil {
+			log.Println(err)
 		}
+		if s.ClientID != ksuid.Nil {
+			s.O <- models.NewMesg(models.ConfirmIDReception, nil)
+			log.Printf("Client ID: %v", s.ClientID.String())
+		}
+
 	}
 	go s.reciver()
 	go s.sender()
