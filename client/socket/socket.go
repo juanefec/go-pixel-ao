@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/juanefec/go-pixel-ao/models"
 	"github.com/segmentio/ksuid"
 )
 
@@ -46,7 +47,10 @@ func NewSocket(ip string, port int) *Socket {
 		data, _, _ := reader.ReadLine()
 		if len(data) == 20 {
 			_ = s.ClientID.UnmarshalBinary(data)
-			log.Printf("Client ID: %v", s.ClientID.String())
+			if s.ClientID != ksuid.Nil {
+				s.O <- models.NewMesg(models.ConfirmIDReception, nil)
+				log.Printf("Client ID: %v", s.ClientID.String())
+			}
 		}
 	}
 	go s.reciver()
