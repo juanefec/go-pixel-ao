@@ -57,13 +57,14 @@ func SocketServer(port int) {
 func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
 	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 1024), endupdate: make(chan struct{}), hasRecivedID: false}
-
+	client.game.register <- client
+	lastSent := time.Now()
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
 	go game.RankingUpdater(client)
-	lastSent := time.Now()
+
 	//Verify ID reception
 	for !client.hasRecivedID {
 		dt := time.Since(lastSent).Seconds()
