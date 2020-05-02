@@ -74,7 +74,7 @@ type Ranking []*models.RankingPosMsg
 
 func (r Ranking) ToMsg() []byte {
 	sort.Slice(r, func(i, j int) bool {
-		return r[i].K < r[j].K
+		return r[i].K > r[j].K
 	})
 	bs, _ := json.Marshal(r)
 	msg := models.Mesg{
