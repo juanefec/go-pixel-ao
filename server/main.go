@@ -40,6 +40,7 @@ func SocketServer(port int) {
 	game := NewGame()
 	defer game.End()
 	go game.Run()
+
 	for {
 		conn, err := listen.Accept()
 		if err != nil {
@@ -276,6 +277,13 @@ func (g *Game) Run() {
 					Client:  client,
 					Event:   models.Disconect,
 					Payload: payload,
+				}
+				for i := range g.Ranking {
+					if g.Ranking[i].ID == client.ID {
+						g.Ranking[i] = g.Ranking[len(g.Ranking)-1]
+						g.Ranking[len(g.Ranking)-1] = nil
+						g.Ranking = g.Ranking[:len(g.Ranking)-1]
+					}
 				}
 				client.endupdate <- struct{}{}
 
