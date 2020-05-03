@@ -172,8 +172,6 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(LavaSpotIcon, 4, "./images/lavaSpotIcon.png")
 		for i := range spells.Projectile {
 			if spells.Projectile[i].SpellName == "fireball" {
-				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
-				println(spells.Projectile[i])
 				pi.PrimarySpell = spells.Projectile[i]
 			}
 		}
@@ -188,8 +186,6 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(SmokeSpotIcon, 4, "./images/smokeSpotIcon.png")
 		for i := range spells.Projectile {
 			if spells.Projectile[i].SpellName == "icesnipe" {
-				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
-				println(spells.Projectile[i])
 				pi.PrimarySpell = spells.Projectile[i]
 			}
 		}
@@ -204,15 +200,11 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(BearTrapIcon, 4, "./images/hunterTrapIcon.png")
 		for i := range spells.ChargedProjectile {
 			if spells.ChargedProjectile[i].SpellName == "arrowshot" {
-				println(spells.ChargedProjectile[i].Charges, spells.ChargedProjectile[i].MaxCharges)
-				println(spells.ChargedProjectile[i])
 				pi.PrimarySpell = spells.ChargedProjectile[i]
 			}
 		}
 		for i := range spells.Trap {
 			if spells.Trap[i].SpellName == "hunter-trap" {
-				println(spells.Trap[i].Charges, spells.Trap[i].MaxCharges)
-				println(spells.Trap[i])
 				pi.SecondarySpell = spells.Trap[i]
 			}
 		}
@@ -222,8 +214,6 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(ImplodeIcon, 4, "./images/flashEffectIcon.png")
 		for i := range spells.Projectile {
 			if spells.Projectile[i].SpellName == "rockshot" {
-				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
-				println(spells.Projectile[i])
 				pi.PrimarySpell = spells.Projectile[i]
 			}
 		}
@@ -238,8 +228,6 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(HealSpotIcon, 4, "./images/healingSpotIcon.png")
 		for i := range spells.Projectile {
 			if spells.Projectile[i].SpellName == "healshot" {
-				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
-				println(spells.Projectile[i])
 				pi.PrimarySpell = spells.Projectile[i]
 			}
 		}
