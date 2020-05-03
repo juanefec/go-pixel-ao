@@ -645,6 +645,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 		if !sd.ChargingSpell {
 			sd.StartProjCharge = time.Now()
 			sd.ChargingSpell = true
+			sd.Caster.mp -= sd.ManaCost
 		}
 	}
 	if sd.ChargingSpell {
@@ -657,7 +658,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 	} else {
 		sd.Caster.playerMovementSpeed = PlayerBaseSpeed
 	}
-	if !sd.Caster.chat.chatting && (win.JustReleased(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+	if !sd.Caster.chat.chatting && (win.JustReleased(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead {
 		sd.ChargingSpell = false
 		if dtproj >= sd.ChargeInterval {
 			if sd.Charges > 0 {
@@ -688,7 +689,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 				case "arrowshot":
 					centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()+(math.Pi/2)).Scaled(projectedCenter, 3)
 				}
-				sd.Caster.mp -= sd.ManaCost
+
 				newSpell := &Spell{
 					caster:         s.ClientID,
 					pos:            sd.Caster.pos,
@@ -700,6 +701,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 					last:           time.Now(),
 					projectileLife: time.Now(),
 					chargeTime:     chargeTime,
+					cspeed:         Map(chargeTime, 0, ArrowMaxCharge, 210, sd.ProjSpeed),
 				}
 				newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 				sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
@@ -718,7 +720,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 
 FBALLS:
 	for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
-		next, kill := sd.CurrentAnimations[i].NextFrameFireball(sd.Frames, sd.ProjSpeed, sd.SpellLifespawn)
+		next, kill := sd.CurrentAnimations[i].NextFrameFireball(sd.Frames, sd.CurrentAnimations[i].cspeed, sd.SpellLifespawn)
 		if kill {
 			if i < len(sd.CurrentAnimations)-1 {
 				copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
@@ -823,7 +825,7 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 		(sd.Caster.wizard.Type == Sniper && sd.SpellName == "smoke-spot") {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
-			if dt >= sd.Interval {
+			if dt >= sd.ChargeInterval {
 				if sd.Charges > 0 {
 					if sd.Charges == sd.MaxCharges {
 						sd.FirstCharge = time.Now()
@@ -1295,8 +1297,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellType = "aoe"
 		lifespawn = 4
 		interval = ManaSpotSpellInterval
-		charges = 1
-		chargeInterval = ManaSpotSpellInterval
+		charges = 2
+		chargeInterval = ManaSpotSpellInterval / 4
 	case "healshot":
 		casterType = Monk
 		sheet = Pictures["./images/healingShot.png"]
@@ -1405,7 +1407,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		scalef = 1.5
 		spellType = "movement"
 		interval = FireballSpellInterval * 4
-		charges = 6
+		charges = 3
 	case "arrowshot":
 		casterType = Hunter
 		sheet = Pictures["./images/arrowShot.png"]
@@ -1415,7 +1417,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 600
 		damage = 230
 		framesspeed = 12
-		spellspeed = 330
+		spellspeed = 480
 		scalef = .5
 		spellType = "casted-projectile"
 		lifespawn = 1.5
@@ -1432,7 +1434,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = Normal
 		manaCost = 0
 		damage = 0
-		framesspeed = 16
+		framesspeed = 18
 		scalef = .4
 	case "hunter-trap":
 		casterType = Hunter
@@ -1442,15 +1444,15 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 800
 		damage = 50
-		framesspeed = 22
-		spellspeed = 22
+		framesspeed = 24
+		spellspeed = 24
 		scalef = .7
 		spellType = "trap"
-		lifespawn = 10
+		lifespawn = 15
 		interval = ManaSpotSpellInterval
 		charges = 3
 		chargeInterval = TrapsChargeInterval
-		efectRaduis = 15
+		efectRaduis = 16
 
 	}
 
@@ -1492,6 +1494,7 @@ type Spell struct {
 	matrix         *pixel.Matrix
 	last           time.Time
 	trapped        bool
+	cspeed         float64
 }
 
 func (a *Spell) NextFrame(spellFrames []pixel.Rect, speed float64) (pixel.Rect, bool) {
@@ -1739,6 +1742,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						case "arrowshot":
 							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
 						}
+						newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
 						newSpell.chargeTime = spell.ChargeTime
 						newSpell.caster = spell.ID
 						newSpell.vel = vel
