@@ -1007,6 +1007,7 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 			sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 			continue
 		}
+
 		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
 			if sd.SpellName == "hunter-trap" {
 				if !sd.CurrentAnimations[i].trapped {
@@ -1017,7 +1018,17 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 				}
 			}
 		}
-
+		for key := range pd.CurrentAnimations {
+			p := pd.CurrentAnimations[key]
+			if !p.dead && p.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+				if sd.SpellName == "hunter-trap" {
+					if !sd.CurrentAnimations[i].trapped {
+						sd.CurrentAnimations[i].trapped = true
+						sd.CurrentAnimations[i].last = time.Now()
+					}
+				}
+			}
+		}
 		if sd.CurrentAnimations[i].trapped || sd.CurrentAnimations[i].caster == s.ClientID {
 			sd.CurrentAnimations[i].step = next
 			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
