@@ -1418,7 +1418,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		spellspeed = 330
 		scalef = .5
 		spellType = "casted-projectile"
-		lifespawn = .9
+		lifespawn = 1.5
 		interval = IcesnipeSpellInterval * 4
 		charges = 3
 		chargeInterval = IcesnipeSpellInterval / 2

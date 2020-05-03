@@ -254,8 +254,6 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		icons.Load(ManaSpotIcon, 4, "./images/manaSpotIcon.png")
 		for i := range spells.Projectile {
 			if spells.Projectile[i].SpellName == "manashot" {
-				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
-				println(spells.Projectile[i])
 				pi.PrimarySpell = spells.Projectile[i]
 			}
 		}
