@@ -146,6 +146,7 @@ func run() {
 		"./images/arrowShot.png",
 		"./images/arrowShotIcon.png",
 		"./images/arrowExplo.png",
+		"./images/hunterTrap.png",
 		"./images/hunterTrapIcon.png",
 	)
 	rawConfig, err := ioutil.ReadFile("./key-config.json")
@@ -188,6 +189,9 @@ func run() {
 		},
 		Movement: GameSpells{
 			NewSpellData("flash", &player),
+		},
+		Trap: GameSpells{
+			NewSpellData("hunter-trap", &player),
 		},
 		Effects: GameSpells{
 			NewSpellData("mini-explo", &player),
@@ -302,6 +306,7 @@ type SpellKinds struct {
 	Projectile,
 	ChargedProjectile,
 	AOE,
+	Trap,
 	Movement,
 	Effects GameSpells
 }
@@ -313,6 +318,7 @@ func (sk *SpellKinds) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Sock
 	sk.Effects.Draw(win, cam, s, pd, cursor)
 	sk.AOE.Draw(win, cam, s, pd, cursor)
 	sk.Movement.Draw(win, cam, s, pd, cursor)
+	sk.Trap.Draw(win, cam, s, pd, cursor)
 }
 
 type GameSpells []*SpellData
@@ -343,12 +349,12 @@ func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socke
 			gs[i].UpdateMovement(win, cam, s, pd, cursor)
 			gs[i].Batch.Draw(win)
 		}
-	// case "trap":
-	// 	for i := range gs {
-	// 		gs[i].Batch.Clear()
-	// 		gs[i].UpdateTrap(win, cam, s, pd, cursor)
-	// 		gs[i].Batch.Draw(win)
-	// 	}
+	case "trap":
+		for i := range gs {
+			gs[i].Batch.Clear()
+			gs[i].UpdateTrap(win, cam, s, pd, cursor)
+			gs[i].Batch.Draw(win)
+		}
 	case "casted-projectile":
 		for i := range gs {
 			gs[i].Batch.Clear()
@@ -922,6 +928,102 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 
 }
 
+func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+	if sd.Caster.wizard.Type == Hunter && sd.SpellName == "hunter-trap" {
+		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
+		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+			if dt >= sd.ChargeInterval {
+				if sd.Charges > 0 {
+					if sd.Charges == sd.MaxCharges {
+						sd.FirstCharge = time.Now()
+					}
+					sd.Charges--
+					mouse := cam.Unproject(win.MousePosition())
+					if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= AOESpellRange {
+						sd.Caster.lastCastSecondary = time.Now()
+
+						spell := models.SpellMsg{
+							ID:        s.ClientID,
+							SpellType: sd.SpellType,
+							SpellName: sd.SpellName,
+							TargetID:  ksuid.Nil,
+							Name:      sd.Caster.sname,
+							X:         mouse.X,
+							Y:         mouse.Y,
+						}
+						paylaod, _ := json.Marshal(spell)
+						s.O <- models.NewMesg(models.Spell, paylaod)
+
+						spellMatrix := pixel.IM.Moved(mouse)
+						sd.Caster.mp -= sd.ManaCost
+						newSpell := &Spell{
+							projectileLife: time.Now(),
+							pos:            mouse,
+							spellName:      &sd.SpellName,
+							step:           sd.Frames[0],
+							frameNumber:    0.0,
+							matrix:         &spellMatrix,
+							last:           time.Now(),
+							caster:         s.ClientID,
+							damageInterval: time.Now(),
+						}
+
+						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+
+					}
+				}
+			}
+		}
+	}
+	if sd.Charges < sd.MaxCharges {
+		if dt := time.Since(sd.FirstCharge).Seconds(); dt > sd.Interval {
+
+			sd.Charges++
+			if sd.Charges != sd.MaxCharges {
+				sd.FirstCharge = time.Now()
+			}
+		}
+	}
+
+	for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
+		next, kill := sd.Frames[0], false
+		if !sd.CurrentAnimations[i].trapped {
+			next, kill = sd.Frames[0], false
+		} else {
+			next, kill = sd.CurrentAnimations[i].NextFrame(sd.Frames, sd.ProjSpeed)
+		}
+		if dt := time.Since(sd.CurrentAnimations[i].last).Seconds(); dt > sd.SpellLifespawn {
+			kill = true
+		}
+		if kill {
+			if i < len(sd.CurrentAnimations)-1 {
+				copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+			}
+			sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+			sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
+			continue
+		}
+		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+			if sd.SpellName == "hunter-trap" {
+				if !sd.CurrentAnimations[i].trapped {
+					sd.Caster.lastRootedStart = time.Now().Add(time.Second)
+					sd.CurrentAnimations[i].trapped = true
+					sd.Caster.rooted = true
+					sd.CurrentAnimations[i].last = time.Now()
+				}
+			}
+		}
+
+		if sd.CurrentAnimations[i].trapped || sd.CurrentAnimations[i].caster == s.ClientID {
+			sd.CurrentAnimations[i].step = next
+			sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
+			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
+		}
+	}
+
+}
+
 func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
 	dmm, _ := json.Marshal(d)
 	msg := models.Mesg{
@@ -1315,6 +1417,24 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		damage = 0
 		framesspeed = 16
 		scalef = .4
+	case "hunter-trap":
+		casterType = Hunter
+		sheet = Pictures["./images/hunterTrap.png"]
+		batch = pixel.NewBatch(&pixel.TrianglesData{}, sheet)
+		frames = getFrames(sheet, 64, 64, 8, 0)
+		mode = SpellCastSecondarySkill
+		manaCost = 800
+		damage = 50
+		framesspeed = 16
+		spellspeed = 12
+		scalef = .7
+		spellType = "trap"
+		lifespawn = 10
+		interval = ManaSpotSpellInterval
+		charges = 3
+		chargeInterval = ManaSpotSpellInterval / 4
+		efectRaduis = 15
+
 	}
 
 	return &SpellData{
@@ -1354,6 +1474,7 @@ type Spell struct {
 	frameNumber    float64
 	matrix         *pixel.Matrix
 	last           time.Time
+	trapped        bool
 }
 
 func (a *Spell) NextFrame(spellFrames []pixel.Rect, speed float64) (pixel.Rect, bool) {
@@ -1367,8 +1488,8 @@ func (a *Spell) NextFrame(spellFrames []pixel.Rect, speed float64) (pixel.Rect, 
 	a.frameNumber = .0
 	return spellFrames[0], true
 }
-
 func (a *Spell) NextFrameFireball(spellFrames []pixel.Rect, speed, lifespawn float64) (pixel.Rect, bool) {
+
 	dt := time.Since(a.last).Seconds()
 	pdt := time.Since(a.projectileLife).Seconds()
 	a.last = time.Now()
@@ -1613,6 +1734,18 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				}
 				for i := range spells.AOE {
 					sd := spells.AOE[i]
+					if spell.SpellName == sd.SpellName {
+						newSpell.pos = pixel.V(spell.X, spell.Y)
+						centerMatrix := pixel.IM.Moved(newSpell.pos)
+						newSpell.caster = spell.ID
+						newSpell.matrix = &centerMatrix
+						newSpell.step = sd.Frames[0]
+						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+					}
+				}
+				for i := range spells.Trap {
+					sd := spells.Trap[i]
 					if spell.SpellName == sd.SpellName {
 						newSpell.pos = pixel.V(spell.X, spell.Y)
 						centerMatrix := pixel.IM.Moved(newSpell.pos)

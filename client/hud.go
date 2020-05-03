@@ -209,7 +209,13 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 				pi.PrimarySpell = spells.ChargedProjectile[i]
 			}
 		}
-		pi.SecondarySpell = spells.AOE[0]
+		for i := range spells.Trap {
+			if spells.Trap[i].SpellName == "hunter-trap" {
+				println(spells.Trap[i].Charges, spells.Trap[i].MaxCharges)
+				println(spells.Trap[i])
+				pi.SecondarySpell = spells.Trap[i]
+			}
+		}
 		break
 	case Timewreker:
 		icons.Load(IgniterFireballIcon, 3, "./images/rockShotIcon.png")
