@@ -37,6 +37,7 @@ var (
 	MaxHealth          = 347.0
 	OnTargetSpellRange = 400.0
 	AOESpellRange      = 700.0
+	TrapSpellRange     = 100.0
 	FlashSpellRange    = 200.0
 	//Spell intervals
 	BasicSpellInterval    = (time.Second.Seconds() / 10) * 9
@@ -934,13 +935,14 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.ChargeInterval {
-				if sd.Charges > 0 {
-					if sd.Charges == sd.MaxCharges {
-						sd.FirstCharge = time.Now()
-					}
-					sd.Charges--
-					mouse := cam.Unproject(win.MousePosition())
-					if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= AOESpellRange {
+				mouse := cam.Unproject(win.MousePosition())
+				if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= TrapSpellRange {
+					if sd.Charges > 0 {
+						if sd.Charges == sd.MaxCharges {
+							sd.FirstCharge = time.Now()
+						}
+						sd.Charges--
+
 						sd.Caster.lastCastSecondary = time.Now()
 
 						spell := models.SpellMsg{
