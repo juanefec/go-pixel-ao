@@ -743,6 +743,7 @@ FBALLS:
 					frameNumber: 0.0,
 					matrix:      &p.bodyMatrix,
 					last:        time.Now(),
+					chargeTime:  sd.CurrentAnimations[i].chargeTime,
 				}
 				for i := range effects {
 					if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrowshot" {
