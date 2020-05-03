@@ -638,7 +638,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 	if sd.ChargingSpell {
 		if dt := time.Since(sd.VelDecreaseTimer); dt > time.Second/10 {
 			sd.VelDecreaseTimer = time.Now()
-			sd.Caster.playerMovementSpeed -= 2
+			sd.Caster.playerMovementSpeed -= 5
 		}
 	} else {
 		sd.Caster.playerMovementSpeed = PlayerBaseSpeed
@@ -758,7 +758,7 @@ FBALLS:
 				last:        time.Now(),
 			}
 			for i := range effects {
-				if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrow-shot" {
+				if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrowshot" {
 					sd.Caster.hp -= Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, 25, float64(sd.Damage))
 
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
@@ -1287,7 +1287,7 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		frames = getFrames(sheet, 32, 32, 2, 2)
 		mode = SpellCastSecondarySkill
 		manaCost = 600
-		damage = 200
+		damage = 230
 		framesspeed = 12
 		spellspeed = 330
 		scalef = .5
@@ -1575,6 +1575,26 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						case "rockshot":
 							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
 						}
+						newSpell.caster = spell.ID
+						newSpell.vel = vel
+						newSpell.pos = caster.pos
+						newSpell.matrix = &centerMatrix
+						newSpell.step = sd.Frames[0]
+						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+					}
+				}
+				for i := range spells.ChargedProjectile {
+					sd := spells.ChargedProjectile[i]
+					if spell.SpellName == sd.SpellName {
+						caster := pd.CurrentAnimations[spell.ID]
+						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+						centerMatrix := pixel.IM
+						switch spell.SpellName {
+						case "arrowshot":
+							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+						}
+						newSpell.chargeTime = spell.ChargeTime
 						newSpell.caster = spell.ID
 						newSpell.vel = vel
 						newSpell.pos = caster.pos
