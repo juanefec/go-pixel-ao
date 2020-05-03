@@ -47,6 +47,7 @@ var (
 	ManaSpotSpellInterval = time.Second.Seconds() * 16
 	FlashSpellInterval    = time.Second.Seconds() * 10
 	ArrowMaxCharge        = time.Second.Seconds() * 2.5
+	TrapsChargeInterval   = time.Second.Seconds()
 
 	// Ranking
 	Ranking = []models.RankingPosMsg{}
@@ -1426,13 +1427,13 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		manaCost = 800
 		damage = 50
 		framesspeed = 16
-		spellspeed = 12
+		spellspeed = 16
 		scalef = .7
 		spellType = "trap"
 		lifespawn = 10
 		interval = ManaSpotSpellInterval
 		charges = 3
-		chargeInterval = ManaSpotSpellInterval / 4
+		chargeInterval = TrapsChargeInterval
 		efectRaduis = 15
 
 	}
