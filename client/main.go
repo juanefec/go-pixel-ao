@@ -542,7 +542,7 @@ FBALLS:
 
 			}
 			if sd.SpellName == "rockshot" {
-				rootTime := Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 300, time.Second.Seconds()*1.5, 0)
+				rootTime := Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 300, time.Second.Seconds()*1.6, time.Second.Seconds()*.1)
 				sd.Caster.lastRootedStart = time.Now().Add(time.Duration(int64(time.Second) * int64(rootTime)))
 				sd.Caster.rooted = true
 				sd.Caster.hp -= sd.Damage
@@ -1700,7 +1700,7 @@ func (p *Player) Update() {
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 		p.rooted = false
 	}
-	if time.Since(p.lastRootedStart).Seconds() > time.Second.Seconds()*.5 {
+	if time.Since(p.lastRootedStart).Seconds() > 0 {
 		p.rooted = false
 	}
 }

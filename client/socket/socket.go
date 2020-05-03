@@ -45,10 +45,9 @@ func NewSocket(ip string, port int) *Socket {
 	reader := bufio.NewReader(conn)
 	for s.ClientID == ksuid.Nil {
 		data, _, _ := reader.ReadLine()
-
-		err = s.ClientID.UnmarshalBinary(data)
+		s.ClientID, err = ksuid.Parse(string(data))
 		if err != nil {
-			log.Println(data)
+			log.Println(string(data))
 			log.Println(err)
 		}
 		if s.ClientID != ksuid.Nil {
