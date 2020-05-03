@@ -55,13 +55,14 @@ type DisconectMsg struct {
 }
 
 type SpellMsg struct {
-	ID        ksuid.KSUID `json:"id"`
-	SpellType string      `json:"spell_type"`
-	SpellName string      `json:"spell_name"`
-	TargetID  ksuid.KSUID `json:"target_id"`
-	Name      string      `json:"name"`
-	X         float64     `json:"x"`
-	Y         float64     `json:"y"`
+	ID         ksuid.KSUID `json:"id"`
+	SpellType  string      `json:"spell_type"`
+	SpellName  string      `json:"spell_name"`
+	TargetID   ksuid.KSUID `json:"target_id"`
+	Name       string      `json:"name"`
+	X          float64     `json:"x"`
+	Y          float64     `json:"y"`
+	ChargeTime float64     `json:"charge_time"`
 }
 
 type PlayerMsg struct {

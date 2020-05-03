@@ -94,6 +94,8 @@ const (
 	ZoomOUTButton
 	KDCount
 	RankingTitle
+	PrimarySpellCharges
+	SecondarySpellCharges
 	Ranking1
 	Ranking2
 	Ranking3
@@ -151,42 +153,115 @@ type PlayerInfo struct {
 	hudText     []*TextProp
 	nfps        int
 	skillIcons  Icons
+
+	PrimarySpell,
+	SecondarySpell *SpellData
+
 	//ranking     []*models.RankingPosMsg
 }
 
-func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo {
+func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerInfo {
 	pi := PlayerInfo{}
 	icons := make(Icons, 5)
 	icons.Load(ApocaIcon, 0, "./images/apocaIcon.png")
 	icons.Load(ExploIcon, 1, "./images/exploIcon.png")
 	icons.Load(DescaIcon, 2, "./images/descaIcon.png")
-
 	switch player.wizard.Type {
 	case DarkWizard:
 		icons.Load(FireballIcon, 3, "./images/fireballIcon.png")
 		icons.Load(LavaSpotIcon, 4, "./images/lavaSpotIcon.png")
+		for i := range spells.Projectile {
+			if spells.Projectile[i].SpellName == "fireball" {
+				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
+				println(spells.Projectile[i])
+				pi.PrimarySpell = spells.Projectile[i]
+			}
+		}
+		for i := range spells.AOE {
+			if spells.AOE[i].SpellName == "lava-spot" {
+				pi.SecondarySpell = spells.AOE[i]
+			}
+		}
 		break
 	case Sniper:
 		icons.Load(IcesnipeIcon, 3, "./images/icesnipeIcon.png")
 		icons.Load(SmokeSpotIcon, 4, "./images/smokeSpotIcon.png")
+		for i := range spells.Projectile {
+			if spells.Projectile[i].SpellName == "icesnipe" {
+				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
+				println(spells.Projectile[i])
+				pi.PrimarySpell = spells.Projectile[i]
+			}
+		}
+		for i := range spells.AOE {
+			if spells.AOE[i].SpellName == "smoke-spot" {
+				pi.SecondarySpell = spells.AOE[i]
+			}
+		}
 		break
 	case Hunter:
-		icons.Load(ArrowshotIcon, 3, "./images/xxxxxxxxxx.png")
-		icons.Load(BearTrapIcon, 4, "./images/xxxxxxxxxxxx.png")
+		icons.Load(ArrowshotIcon, 3, "./images/arrowShotIcon.png")
+		icons.Load(BearTrapIcon, 4, "./images/hunterTrapIcon.png")
+		for i := range spells.ChargedProjectile {
+			if spells.ChargedProjectile[i].SpellName == "arrowshot" {
+				println(spells.ChargedProjectile[i].Charges, spells.ChargedProjectile[i].MaxCharges)
+				println(spells.ChargedProjectile[i])
+				pi.PrimarySpell = spells.ChargedProjectile[i]
+			}
+		}
+		pi.SecondarySpell = spells.AOE[0]
 		break
 	case Timewreker:
 		icons.Load(IgniterFireballIcon, 3, "./images/rockShotIcon.png")
 		icons.Load(ImplodeIcon, 4, "./images/flashEffectIcon.png")
+		for i := range spells.Projectile {
+			if spells.Projectile[i].SpellName == "rockshot" {
+				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
+				println(spells.Projectile[i])
+				pi.PrimarySpell = spells.Projectile[i]
+			}
+		}
+		for i := range spells.Movement {
+			if spells.Movement[i].SpellName == "flash" {
+				pi.SecondarySpell = spells.Movement[i]
+			}
+		}
 		break
 	case Monk:
 		icons.Load(HealingballIcon, 3, "./images/healingShotIcon.png")
 		icons.Load(HealSpotIcon, 4, "./images/healingSpotIcon.png")
+		for i := range spells.Projectile {
+			if spells.Projectile[i].SpellName == "healshot" {
+				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
+				println(spells.Projectile[i])
+				pi.PrimarySpell = spells.Projectile[i]
+			}
+		}
+		for i := range spells.AOE {
+			if spells.AOE[i].SpellName == "heal-spot" {
+				pi.SecondarySpell = spells.AOE[i]
+			}
+		}
+		break
 	case Shaman:
 		icons.Load(ManaShotIcon, 3, "./images/manaShotIcon.png")
 		icons.Load(ManaSpotIcon, 4, "./images/manaSpotIcon.png")
+		for i := range spells.Projectile {
+			if spells.Projectile[i].SpellName == "manashot" {
+				println(spells.Projectile[i].Charges, spells.Projectile[i].MaxCharges)
+				println(spells.Projectile[i])
+				pi.PrimarySpell = spells.Projectile[i]
+			}
+		}
+		for i := range spells.AOE {
+			if spells.AOE[i].SpellName == "mana-spot" {
+				pi.SecondarySpell = spells.AOE[i]
+			}
+		}
+		break
 	}
 
-	hudProps := make([]*TextProp, 20)
+	hudProps := make([]*TextProp, 22)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, player.maxhp)
 	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, player.maxmp)
@@ -208,6 +283,8 @@ func NewPlayerInfo(player *Player, pd *PlayersData, reload ...Skin) *PlayerInfo 
 	hudProps[Ranking8] = NewTextProp(basicAtlas, "8: %v 	| %v | %v", "-", 0, 0)
 	hudProps[Ranking9] = NewTextProp(basicAtlas, "9: %v 	| %v | %v", "-", 0, 0)
 	hudProps[Ranking10] = NewTextProp(basicAtlas, "10: %v 	| %v | %v", "-", 0, 0)
+	hudProps[PrimarySpellCharges] = NewTextProp(basicAtlas, fmt.Sprint(pi.PrimarySpell.MaxCharges))
+	hudProps[SecondarySpellCharges] = NewTextProp(basicAtlas, fmt.Sprint(pi.SecondarySpell.MaxCharges))
 
 	pi.player = player
 	pi.playersData = pd
@@ -342,7 +419,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	)
 	info.Rectangle(0)
 	info.Color = color.RGBA{40, 210, 88, 120}
-	mainSpellsCooldown := pixel.V(30, Map(time.Since(pi.player.lastCast).Seconds(), 0, wizard.Intervals[0], 0, 30))
+	mainSpellsCooldown := pixel.V(30, Map(time.Since(pi.player.lastCast).Seconds(), 0, BasicSpellInterval, 0, 30))
 	info.Push(
 		getRectangleVecs(icon1pos, mainSpellsCooldown)...,
 	)
@@ -355,9 +432,8 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 		getRectangleVecs(icon3pos, mainSpellsCooldown)...,
 	)
 	info.Rectangle(0)
-
-	classPrimarySpellsCooldown := pixel.V(30, Map(time.Since(pi.player.lastCastPrimary).Seconds(), 0, wizard.Intervals[1], 0, 30))
-	classSecondarySpellsCooldown := pixel.V(30, Map(time.Since(pi.player.lastCastSecondary).Seconds(), 0, wizard.Intervals[2], 0, 30))
+	classPrimarySpellsCooldown := pixel.V(30, Map(time.Since(pi.PrimarySpell.FirstCharge).Seconds(), 0, pi.PrimarySpell.Interval, 0, 30))
+	classSecondarySpellsCooldown := pixel.V(30, Map(time.Since(pi.SecondarySpell.FirstCharge).Seconds(), 0, pi.SecondarySpell.Interval, 0, 30))
 	info.Push(
 		getRectangleVecs(icon4pos, classPrimarySpellsCooldown)...,
 	)
@@ -413,7 +489,10 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 		pi.skillIcons[3].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.4).Moved(icon4pos.Add(pixel.V(14, 15))))
 		pi.skillIcons[4].Sprite.Draw(win, pixel.IM.Scaled(pixel.ZV, 0.25).Moved(icon5pos.Add(pixel.V(15, 14))))
 	}
-
+	pi.hudText[PrimarySpellCharges].Text.Color = colornames.Black
+	pi.hudText[PrimarySpellCharges].Draw(win, pixel.IM.Moved(icon4pos.Add(pixel.V(2, 2))), fmt.Sprint(pi.PrimarySpell.Charges))
+	pi.hudText[SecondarySpellCharges].Text.Color = colornames.Black
+	pi.hudText[SecondarySpellCharges].Draw(win, pixel.IM.Moved(icon5pos.Add(pixel.V(2, 2))), fmt.Sprint(pi.SecondarySpell.Charges))
 	pi.hudText[HealthNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(46, 6))), "%v/%v", int(pi.player.hp), int(pi.player.maxhp))
 	pi.hudText[ManaNumber].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(40, -25))), "%v/%v", int(pi.player.mp), int(pi.player.maxmp))
 	topLeftInfoPos := cam.Unproject(pixel.V(30, winSize.Y-50))

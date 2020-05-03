@@ -45,7 +45,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		var key pixelgl.Button
 		min := 99999999999999
 		for k, v := range m {
-			if v < min && v > 0 {
+			if v < min && v >= 0 {
 				key = k
 				min = v
 			}
@@ -59,13 +59,16 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
 		if !player.chat.chatting && !player.rooted {
-
+			var axisX bool
+			dist := .0
 			if win.Pressed(KeyLeft) {
 				if latestPressed(KeyLeft, timeMap) {
 					player.moving = true
 					player.dir = "left"
 					if player.pos.X > Left {
-						player.pos.X -= PlayerSpeed * dt
+						axisX = true
+						dist -= player.playerMovementSpeed * dt
+						timeMap[KeyLeft] = 0
 					} else {
 						player.moving = false
 					}
@@ -80,7 +83,9 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 					player.moving = true
 					player.dir = "right"
 					if player.pos.X < Right {
-						player.pos.X += PlayerSpeed * dt
+						axisX = true
+						dist += player.playerMovementSpeed * dt
+						timeMap[KeyRight] = 0
 					} else {
 						player.moving = false
 					}
@@ -95,7 +100,9 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 					player.moving = true
 					player.dir = "down"
 					if player.pos.Y > Bottom {
-						player.pos.Y -= PlayerSpeed * dt
+						axisX = false
+						dist -= player.playerMovementSpeed * dt
+						timeMap[KeyDown] = 0
 					} else {
 						player.moving = false
 					}
@@ -111,7 +118,9 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 					player.moving = true
 					player.dir = "up"
 					if player.pos.Y < Top {
-						player.pos.Y += PlayerSpeed * dt
+						axisX = false
+						dist += player.playerMovementSpeed * dt
+						timeMap[KeyUp] = 0
 					} else {
 						player.moving = false
 					}
@@ -119,6 +128,14 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				timeMap[KeyUp]++
 			} else {
 				timeMap[KeyUp] = -1
+			}
+
+			if player.moving {
+				if axisX {
+					player.pos.X += dist
+				} else {
+					player.pos.Y += dist
+				}
 			}
 
 			if win.JustPressed(pixelgl.Button(Key.Explo)) {
