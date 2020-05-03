@@ -730,11 +730,6 @@ FBALLS:
 		for key := range pd.CurrentAnimations {
 			p := pd.CurrentAnimations[key]
 			if sd.CurrentAnimations[i].caster != key && !p.dead && p.OnMe(sd.CurrentAnimations[i].pos) {
-				if i < len(sd.CurrentAnimations)-1 {
-					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
-				}
-				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
-				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 				effect := &Spell{
 					target:      p,
 					caster:      s.ClientID,
@@ -745,11 +740,18 @@ FBALLS:
 					last:        time.Now(),
 					chargeTime:  sd.CurrentAnimations[i].chargeTime,
 				}
+
 				for i := range effects {
 					if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrowshot" {
 						effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
 					}
 				}
+
+				if i < len(sd.CurrentAnimations)-1 {
+					copy(sd.CurrentAnimations[i:], sd.CurrentAnimations[i+1:])
+				}
+				sd.CurrentAnimations[len(sd.CurrentAnimations)-1] = nil // or the zero sd.vCurrentAnimationslue of T
+				sd.CurrentAnimations = sd.CurrentAnimations[:len(sd.CurrentAnimations)-1]
 
 				p.hp -= sd.Damage
 				if p.hp <= 0 {
