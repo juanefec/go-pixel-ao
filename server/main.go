@@ -56,24 +56,32 @@ func SocketServer(port int) {
 // ServeGame handles websocket requests from the peer.
 func ServeGame(conn *net.Conn, game *Game) {
 	id := ksuid.New()
-	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 1024), endupdate: make(chan struct{}), hasRecivedID: false}
+	client := &Client{ID: id, game: game, conn: conn, send: make(chan []byte, 1024), hasRecivedID: false}
 	lastSent := time.Now()
-	client.send <- client.ID.Bytes()
+	client.send <- []byte(client.ID.String())
+	log.Printf("Sengind ID: %v", client.ID.String())
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go client.writePump()
 	go client.readPump()
 
+	maxRetrys := 10
 	//Verify ID reception
+	rn := 0
 	for !client.hasRecivedID {
-		dt := time.Since(lastSent)
-		if dt > time.Second {
-			lastSent = time.Now()
-			client.send <- client.ID.Bytes()
+		if rn < maxRetrys {
+			dt := time.Since(lastSent)
+			if dt > time.Second {
+				rn++
+				lastSent = time.Now()
+				client.send <- []byte(client.ID.String())
+				log.Printf("Retrying ID: %v", client.ID.String())
+			}
+		} else {
+			break
 		}
 	}
 	client.game.register <- client
-	go game.RankingUpdater(client)
 }
 
 var (
@@ -138,7 +146,6 @@ type Client struct {
 	game         *Game
 	conn         *net.Conn
 	send         chan []byte
-	endupdate    chan struct{}
 	hasRecivedID bool
 }
 
@@ -257,16 +264,23 @@ func (g *Game) End() {
 
 func (g *Game) Run() {
 	go func() {
+		rankingUpdater := time.Tick(time.Second)
 		for {
 			select {
 			case event := <-g.eventBroadcast:
-				for c := range g.clients {
-					if c.ID != event.Client.ID {
+				for c, ok := range g.clients {
+					if ok && c.ID != event.Client.ID {
 						c.send <- models.NewMesg(event.Event, event.Payload)
 					}
 				}
 				if event.Event == models.Disconect {
 					delete(g.clients, event.Client)
+				}
+			case <-rankingUpdater:
+				for c, ok := range g.clients {
+					if ok {
+						c.send <- g.Ranking.ToMsg()
+					}
 				}
 			}
 		}
@@ -284,6 +298,7 @@ func (g *Game) Run() {
 
 		case client := <-g.unregister:
 			if _, ok := g.clients[client]; ok {
+				g.clients[client] = false
 				p := models.DisconectMsg{ID: client.ID}
 				payload, _ := json.Marshal(p)
 				g.eventBroadcast <- BroadcastEvent{
@@ -299,9 +314,9 @@ func (g *Game) Run() {
 						break
 					}
 				}
-				client.endupdate <- struct{}{}
 
 				delete(g.Players, client.ID)
+				close(client.send)
 			}
 
 		case <-logger:
@@ -309,23 +324,6 @@ func (g *Game) Run() {
 		}
 
 	}
-}
-
-func (g *Game) RankingUpdater(c *Client) {
-	updater := time.Tick(time.Second)
-ULOOP:
-	for {
-		select {
-		case <-c.endupdate:
-			break ULOOP
-		case <-updater:
-			c.send <- g.Ranking.ToMsg()
-
-		}
-
-	}
-	close(c.send)
-	log.Printf("Exited Game.ClientUpdater: %v", c.ID)
 }
 
 func (g *Game) UpdateServer(message BroadcastEvent) {
