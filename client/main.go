@@ -1442,8 +1442,8 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 800
 		damage = 50
-		framesspeed = 16
-		spellspeed = 16
+		framesspeed = 22
+		spellspeed = 22
 		scalef = .7
 		spellType = "trap"
 		lifespawn = 10
@@ -2213,7 +2213,7 @@ func (p *Player) getNextBodyFrame(dirFrames []int, part []pixel.Rect) pixel.Rect
 	dt := time.Since(p.lastBodyFrame).Seconds()
 	p.lastBodyFrame = time.Now()
 	if p.moving {
-		p.bodyStep += 13 * dt
+		p.bodyStep += (p.playerMovementSpeed / 15) * dt
 		newFrame := int(p.bodyStep)
 		if (newFrame <= 5 && (p.dir == "up" || p.dir == "down")) || (newFrame <= 4 && (p.dir == "right" || p.dir == "left")) {
 			return part[dirFrames[newFrame]]
