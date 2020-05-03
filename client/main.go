@@ -46,7 +46,7 @@ var (
 	LavaSpellInterval     = time.Second.Seconds() * 14
 	ManaSpotSpellInterval = time.Second.Seconds() * 16
 	FlashSpellInterval    = time.Second.Seconds() * 10
-	ArrowMaxCharge        = time.Second.Seconds() * 2
+	ArrowMaxCharge        = time.Second.Seconds() * 2.5
 
 	// Ranking
 	Ranking = []models.RankingPosMsg{}
@@ -352,7 +352,7 @@ func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socke
 	case "casted-projectile":
 		for i := range gs {
 			gs[i].Batch.Clear()
-			gs[i].UpdateCastedProjectile(win, cam, s, pd, cursor)
+			gs[i].UpdateCastedProjectile(win, cam, s, pd, cursor, effects...)
 			gs[i].Batch.Draw(win)
 		}
 
@@ -443,7 +443,11 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 		}
 		sd.CurrentAnimations[i].step = next
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
-		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, sd.ScaleF))
+		scale := sd.ScaleF
+		if sd.SpellName == "arrow-explo" {
+			scale = Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, .5, 1.5)
+		}
+		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, scale))
 	}
 
 }
@@ -638,7 +642,9 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 	if sd.ChargingSpell {
 		if dt := time.Since(sd.VelDecreaseTimer); dt > time.Second/10 {
 			sd.VelDecreaseTimer = time.Now()
-			sd.Caster.playerMovementSpeed -= 5
+			if sd.Caster.playerMovementSpeed > 100 {
+				sd.Caster.playerMovementSpeed -= 15
+			}
 		}
 	} else {
 		sd.Caster.playerMovementSpeed = PlayerBaseSpeed
@@ -756,12 +762,13 @@ FBALLS:
 				frameNumber: 0.0,
 				matrix:      &sd.Caster.bodyMatrix,
 				last:        time.Now(),
+				chargeTime:  sd.CurrentAnimations[i].chargeTime,
 			}
-			for i := range effects {
-				if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrowshot" {
+			for e := range effects {
+				if "arrow-explo" == effects[e].SpellName && sd.SpellName == "arrowshot" {
 					sd.Caster.hp -= Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, 25, float64(sd.Damage))
 
-					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
+					effects[e].CurrentAnimations = append(effects[e].CurrentAnimations, effect)
 				}
 
 			}
