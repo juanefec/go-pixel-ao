@@ -2250,7 +2250,7 @@ func (p *Player) Update() {
 		}
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 20)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 		p.rooted = false
