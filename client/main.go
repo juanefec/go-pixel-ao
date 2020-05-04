@@ -235,9 +235,11 @@ func run() {
 
 		forest.GrassBatch.Draw(win)
 		forest.FenceBatchHTOP.Draw(win)
+		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win)
 		player.Draw(win, socket)
+		player.DrawIngameHud(win, allSpells.ChargedProjectile[0])
 		//buda.Draw(win)
 		forest.Batch.Draw(win)
 		forest.Trees.Draw(win)
@@ -320,7 +322,7 @@ func (sk *SpellKinds) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Sock
 	sk.Effects.Draw(win, cam, s, pd, cursor)
 	sk.AOE.Draw(win, cam, s, pd, cursor)
 	sk.Movement.Draw(win, cam, s, pd, cursor)
-	sk.Trap.Draw(win, cam, s, pd, cursor)
+
 }
 
 type GameSpells []*SpellData
@@ -596,7 +598,7 @@ FBALLS:
 
 			}
 			if sd.SpellName == "rockshot" {
-				rootTime := Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 300, time.Second.Seconds()*1.6, time.Second.Seconds()*.1)
+				rootTime := Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 300, time.Second.Seconds()*1.6, time.Second.Seconds()*.5)
 				sd.Caster.lastRootedStart = time.Now().Add(time.Duration(int64(time.Second) * int64(rootTime)))
 				sd.Caster.rooted = true
 				sd.Caster.hp -= sd.Damage
@@ -649,16 +651,16 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 		}
 	}
 	if sd.ChargingSpell {
-		if dt := time.Since(sd.VelDecreaseTimer); dt > time.Second/10 {
+		if dt := time.Since(sd.VelDecreaseTimer); dt > time.Second/8 {
 			sd.VelDecreaseTimer = time.Now()
 			if sd.Caster.playerMovementSpeed > 100 {
-				sd.Caster.playerMovementSpeed -= 15
+				sd.Caster.playerMovementSpeed -= 6
 			}
 		}
 	} else {
 		sd.Caster.playerMovementSpeed = PlayerBaseSpeed
 	}
-	if !sd.Caster.chat.chatting && (win.JustReleased(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead {
+	if sd.ChargingSpell && (win.JustReleased(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead {
 		sd.ChargingSpell = false
 		if dtproj >= sd.ChargeInterval {
 			if sd.Charges > 0 {
@@ -1013,7 +1015,7 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 			continue
 		}
 
-		if !sd.Caster.dead && sd.Caster.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+		if !sd.Caster.dead && sd.Caster.OnTrap(sd.CurrentAnimations[i].pos) {
 			if sd.SpellName == "hunter-trap" {
 				if !sd.CurrentAnimations[i].trapped {
 					sd.Caster.lastRootedStart = time.Now().Add(time.Second)
@@ -1025,7 +1027,7 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 		}
 		for key := range pd.CurrentAnimations {
 			p := pd.CurrentAnimations[key]
-			if !p.dead && p.InsideRaduis(sd.CurrentAnimations[i].pos, sd.EffectRadius) {
+			if !p.dead && p.OnTrap(sd.CurrentAnimations[i].pos) {
 				if sd.SpellName == "hunter-trap" {
 					if !sd.CurrentAnimations[i].trapped {
 						sd.CurrentAnimations[i].trapped = true
@@ -1444,9 +1446,9 @@ func NewSpellData(spell string, caster *Player) *SpellData {
 		mode = SpellCastSecondarySkill
 		manaCost = 800
 		damage = 50
-		framesspeed = 24
-		spellspeed = 24
-		scalef = .7
+		framesspeed = 12
+		spellspeed = 12
+		scalef = .9
 		spellType = "trap"
 		lifespawn = 15
 		interval = ManaSpotSpellInterval
@@ -1898,6 +1900,66 @@ func (p *Player) DrawHealthMana(win *pixelgl.Window) {
 	info.Draw(win)
 }
 
+func (p *Player) DrawIngameHud(win *pixelgl.Window, arrawSpells *SpellData) {
+	arrowChargeBar := p.cam.Unproject(win.Bounds().Center()).Add(pixel.V(-16, 38))
+	info := imdraw.New(nil)
+	if p.wizard.Type == Hunter && arrawSpells.ChargingSpell {
+		info.EndShape = imdraw.SharpEndShape
+		info.Color = colornames.Beige
+		castTime := Map(time.Since(arrawSpells.StartProjCharge).Seconds(), 0, ArrowMaxCharge, 0, 32)
+		info.Push(
+			arrowChargeBar.Add(pixel.V(0, 0)),
+			arrowChargeBar.Add(pixel.V(castTime, 0)),
+			arrowChargeBar.Add(pixel.V(0, -2)),
+			arrowChargeBar.Add(pixel.V(castTime, -2)),
+		)
+		info.Rectangle(0)
+	}
+	healthBar := arrowChargeBar.Add(pixel.V(0, -61))
+	info.Color = colornames.Black
+	info.EndShape = imdraw.SharpEndShape
+	info.Push(
+		healthBar.Add(pixel.V(0, 0)),
+		healthBar.Add(pixel.V(32, 0)),
+		healthBar.Add(pixel.V(0, -2)),
+		healthBar.Add(pixel.V(32, -2)),
+	)
+	info.Rectangle(2)
+
+	info.Color = pixel.RGB(1, 0, 0)
+	hval := Map(float64(p.hp), 0, float64(p.maxhp), 0, 32)
+	info.Push(
+		healthBar.Add(pixel.V(0, 0)),
+		healthBar.Add(pixel.V(hval, 0)),
+		healthBar.Add(pixel.V(0, -2)),
+		healthBar.Add(pixel.V(hval, -2)),
+	)
+	info.Rectangle(0)
+	manaBar := healthBar.Add(pixel.V(0, -5))
+	info.Color = colornames.Black
+	info.EndShape = imdraw.SharpEndShape
+	info.Push(
+		manaBar.Add(pixel.V(0, 0)),
+		manaBar.Add(pixel.V(32, 0)),
+		manaBar.Add(pixel.V(0, -2)),
+		manaBar.Add(pixel.V(32, -2)),
+	)
+	info.Rectangle(2)
+
+	info.Color = pixel.RGB(0, 0, 1)
+	mval := Map(float64(p.mp), 0, float64(p.maxmp), 0, 32)
+	info.Push(
+		manaBar.Add(pixel.V(0, 0)),
+		manaBar.Add(pixel.V(mval, 0)),
+		manaBar.Add(pixel.V(0, -2)),
+		manaBar.Add(pixel.V(mval, -2)),
+	)
+	info.Rectangle(0)
+
+	info.Draw(win)
+
+}
+
 type Chat struct {
 	msgTimeout      time.Time
 	chatting        bool
@@ -2073,6 +2135,11 @@ func (p *Player) OnMe(click pixel.Vec) bool {
 	return r
 }
 
+func (p *Player) OnTrap(click pixel.Vec) bool {
+	r := click.X < p.pos.X+12 && click.X > p.pos.X-12 && click.Y < p.pos.Y+5 && click.Y > p.pos.Y-20
+	return r
+}
+
 func (p *Player) InsideRaduis(center pixel.Vec, r float64) bool {
 	return math.Abs(Dist(center, p.pos)) <= r
 }
@@ -2131,7 +2198,7 @@ func (p *Player) Update() {
 		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 22)))
 		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
 		p.hatMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 21)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -26)))
+		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
 		p.bacu = pixel.NewSprite(*p.bacuPic, p.bacuFrame)
