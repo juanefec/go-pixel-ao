@@ -943,7 +943,7 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.ChargeInterval {
 				mouse := cam.Unproject(win.MousePosition())
-				if Dist(mouse, cam.Unproject(win.Bounds().Center())) <= TrapSpellRange {
+				if true {
 					if sd.Charges > 0 {
 						if sd.Charges == sd.MaxCharges {
 							sd.FirstCharge = time.Now()
@@ -951,24 +951,31 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 						sd.Charges--
 
 						sd.Caster.lastCastSecondary = time.Now()
-
+						dist := Dist(mouse, cam.Unproject(win.Bounds().Center()))
+						trapPos := pixel.ZV
+						if dist <= TrapSpellRange {
+							trapPos = mouse
+						} else {
+							nm := VectorNormalize(mouse.Sub(cam.Unproject(win.Bounds().Center())))
+							trapPos = nm.Scaled(TrapSpellRange).Add(cam.Unproject(win.Bounds().Center()))
+						}
 						spell := models.SpellMsg{
 							ID:        s.ClientID,
 							SpellType: sd.SpellType,
 							SpellName: sd.SpellName,
 							TargetID:  ksuid.Nil,
 							Name:      sd.Caster.sname,
-							X:         mouse.X,
-							Y:         mouse.Y,
+							X:         trapPos.X,
+							Y:         trapPos.Y,
 						}
 						paylaod, _ := json.Marshal(spell)
 						s.O <- models.NewMesg(models.Spell, paylaod)
 
-						spellMatrix := pixel.IM.Moved(mouse)
+						spellMatrix := pixel.IM.Moved(trapPos)
 						sd.Caster.mp -= sd.ManaCost
 						newSpell := &Spell{
 							projectileLife: time.Now(),
-							pos:            mouse,
+							pos:            trapPos,
 							spellName:      &sd.SpellName,
 							step:           sd.Frames[0],
 							frameNumber:    0.0,
