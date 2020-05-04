@@ -1835,7 +1835,7 @@ func (pd *PlayersData) Draw(win *pixelgl.Window) {
 		pd.AnimationsMutex.RUnlock()
 		pd.Skins.DrawToBatch(p)
 		if !p.invisible {
-			p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, -8)))
+			p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, 4)))
 			p.chat.Draw(win, p.pos)
 			p.DrawHealthMana(win)
 		}
