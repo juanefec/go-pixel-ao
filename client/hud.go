@@ -92,6 +92,7 @@ const (
 	FPSCount
 	ZoomINButton
 	ZoomOUTButton
+	ZoomTitle
 	KDCount
 	RankingTitle
 	PrimarySpellCharges
@@ -253,7 +254,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 		break
 	}
 
-	hudProps := make([]*TextProp, 22)
+	hudProps := make([]*TextProp, 23)
 	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
 	hudProps[HealthNumber] = NewTextProp(basicAtlas, "%v/%v", player.hp, player.maxhp)
 	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, player.maxmp)
@@ -263,6 +264,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 	hudProps[FPSCount] = NewTextProp(basicAtlas, "FPS: %v", 0)
 	hudProps[ZoomINButton] = NewTextProp(basicAtlas, "in")
 	hudProps[ZoomOUTButton] = NewTextProp(basicAtlas, "out")
+	hudProps[ZoomTitle] = NewTextProp(basicAtlas, "Z to toggle")
 	hudProps[KDCount] = NewTextProp(basicAtlas, "K/D: %v/%v", player.kills, player)
 	hudProps[RankingTitle] = NewTextProp(basicAtlas, "Top 10           K     D")
 	hudProps[Ranking1] = NewTextProp(basicAtlas, "1: %v 	| %v | %v", "-", 0, 0)
@@ -345,38 +347,22 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	info.Rectangle(0)
 
 	//zoom toggle
-	zoomTogglePos := topRigthInfoPos.Add(pixel.V(140, -80))
+	zoomTogglePos := topRigthInfoPos.Add(pixel.V(130, -60))
 	info.Color = color.RGBA{0, 10, 0, 170}
 	info.Push(
-		getRectangleVecs(zoomTogglePos.Add(pixel.V(0, 0)), pixel.V(18, 34))...,
+		getRectangleVecs(zoomTogglePos.Add(pixel.V(0, 0)), pixel.V(20, 20))...,
 	)
 	info.Rectangle(0)
-	info.Push(
-		getRectangleVecs(zoomTogglePos.Add(pixel.V(2, 2)), pixel.V(14, 14))...,
-	)
-	info.Rectangle(0)
-	info.Push(
-		getRectangleVecs(zoomTogglePos.Add(pixel.V(2, 18)), pixel.V(14, 14))...,
-	)
-	info.Rectangle(0)
-
-	pi.hudText[ZoomINButton].Text.Color = colornames.White
-	pi.hudText[ZoomOUTButton].Text.Color = colornames.White
-	if Zoom == 2 {
-		info.Color = color.RGBA{233, 233, 233, 133}
+	drawTitle := false
+	titlePos := cam.Unproject(win.MousePosition())
+	if titlePos.X < zoomTogglePos.X+20 && titlePos.X > zoomTogglePos.X && titlePos.Y < zoomTogglePos.Y+20 && titlePos.Y > zoomTogglePos.Y {
+		//titlePos := zoomTogglePos.Add(pixel.V(-60, -20))
+		info.Color = color.RGBA{0, 50, 40, 200}
 		info.Push(
-			getRectangleVecs(zoomTogglePos.Add(pixel.V(2, 2)), pixel.V(14, 14))...,
+			getRectangleVecs(titlePos.Add(pixel.V(-80, -20)), pixel.V(80, 20))...,
 		)
 		info.Rectangle(0)
-		pi.hudText[ZoomINButton].Text.Color = colornames.Black
-	}
-	if Zoom == 1 {
-		info.Color = color.RGBA{233, 233, 233, 133}
-		info.Push(
-			getRectangleVecs(zoomTogglePos.Add(pixel.V(2, 18)), pixel.V(14, 14))...,
-		)
-		info.Rectangle(0)
-		pi.hudText[ZoomOUTButton].Text.Color = colornames.Black
+		drawTitle = true
 	}
 
 	// Habilities info
@@ -491,8 +477,15 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	pi.hudText[OnlineCount].Draw(win, pixel.IM.Moved(topLeftInfoPos).Scaled(topLeftInfoPos, 2), "Online: %v", pi.playersData.Online+1)
 	pi.hudText[FPSCount].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -20))), "FPS: %v", pi.nfps)
 	pi.hudText[PosXY].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -40))), "X: %v\nY: %v", int(pi.player.pos.X/10), int(pi.player.pos.Y/10))
-	pi.hudText[ZoomINButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "zi")
-	pi.hudText[ZoomOUTButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 22))), "zo")
+
+	if Zoom == 2 {
+		pi.hudText[ZoomINButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "x2")
+	} else {
+		pi.hudText[ZoomOUTButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "x1")
+	}
+	if drawTitle {
+		pi.hudText[ZoomTitle].Draw(win, pixel.IM.Moved(titlePos.Add(pixel.V(-78, -16))), "Z to toggle")
+	}
 
 	pi.hudText[KDCount].Draw(win, pixel.IM.Moved(topRigthInfoPos.Add(pixel.V(-80, 10))), "K/D: %v/%v", pi.player.kills, pi.player.deaths)
 
@@ -529,14 +522,14 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 
 	// Zoom Button
 	if win.JustPressed(pixelgl.MouseButtonLeft) {
-		ix, iy := zoomTogglePos.Add(pixel.V(9, 9)).XY()
-		ox, oy := zoomTogglePos.Add(pixel.V(9, 24)).XY()
+		ix, iy := zoomTogglePos.Add(pixel.V(10, 10)).XY()
 		mx, my := cam.Unproject(win.MousePosition()).XY()
-		if mx < ix+7 && mx > ix-7 && my < iy+7 && my > iy-7 {
-			Zoom = 2
-		}
-		if mx < ox+7 && mx > ox-7 && my < oy+7 && my > oy-7 {
-			Zoom = 1
+		if mx < ix+10 && mx > ix-10 && my < iy+10 && my > iy-10 {
+			if Zoom == 2 {
+				Zoom = 1
+			} else {
+				Zoom = 2
+			}
 		}
 	}
 }
