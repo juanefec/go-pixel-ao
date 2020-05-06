@@ -161,8 +161,8 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		scale := sd.ScaleF
 		if sd.SpellName == "arrow-explo" {
+			scale = Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, .5, 1.5)
 		}
-		scale = Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, .5, 1.5)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, scale))
 	}
 
