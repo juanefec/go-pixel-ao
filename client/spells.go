@@ -170,7 +170,7 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 
 func (sd *SpellData) UpdateProjectiles(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
 	dtproj := time.Since(sd.Caster.lastCastPrimary).Seconds()
-	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if dtproj >= sd.ChargeInterval {
 			if sd.Charges > 0 {
 				if sd.Charges == sd.MaxCharges {
@@ -349,7 +349,7 @@ FBALLS:
 
 func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
 	dtproj := time.Since(sd.Caster.lastCastPrimary).Seconds()
-	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if !sd.ChargingSpell {
 			sd.StartProjCharge = time.Now()
 			sd.ChargingSpell = true
@@ -370,7 +370,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 		sd.ChargingSpell = false
 		sd.Caster.playerMovementSpeed = PlayerBaseSpeed
 	}
-	if sd.ChargingSpell && (win.JustReleased(pixelgl.Button(Key.FireB)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead {
+	if sd.ChargingSpell && (win.JustReleased(pixelgl.Button(Key.PrimarySkill)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead {
 		sd.ChargingSpell = false
 		if dtproj >= sd.ChargeInterval {
 			if sd.Charges > 0 {
@@ -536,7 +536,7 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 		(sd.Caster.wizard.Type == DarkWizard && sd.SpellName == "lava-spot") ||
 		(sd.Caster.wizard.Type == Sniper && sd.SpellName == "smoke-spot") {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
-		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.SecondarySkill)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.ChargeInterval {
 				if sd.Charges > 0 {
 					if sd.Charges == sd.MaxCharges {
@@ -650,7 +650,7 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
 	if sd.Caster.wizard.Type == Hunter && sd.SpellName == "hunter-trap" {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
-		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.SecondarySkill)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.ChargeInterval {
 				mouse := cam.Unproject(win.MousePosition())
 				if true {
@@ -798,7 +798,7 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 
 	if sd.Caster.wizard.Type == Timewreker && sd.SpellName == "flash" {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
-		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.IceSnipe)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.SecondarySkill)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 			if dt >= sd.ChargeInterval {
 				if sd.Charges > 0 {
 					if sd.Charges == sd.MaxCharges {

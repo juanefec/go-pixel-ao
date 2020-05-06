@@ -16,13 +16,13 @@ const (
 )
 
 type KeyConfig struct {
-	Apoca    int `json:"apoca_key"`
-	Desca    int `json:"desca_key"`
-	Explo    int `json:"explo_key"`
-	FireB    int `json:"fireball_key"`
-	IceSnipe int `json:"icesnipe_key"`
-	Rojas    int `json:"rojas_key"`
-	Azules   int `json:"azules_key"`
+	Apoca          int `json:"apoca_key"`
+	Desca          int `json:"desca_key"`
+	Explo          int `json:"explo_key"`
+	PrimarySkill   int `json:"primary_skill_key"`
+	SecondarySkill int `json:"secondary_skill_key"`
+	Rojas          int `json:"rojas_key"`
+	Azules         int `json:"azules_key"`
 }
 
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
@@ -53,7 +53,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		return key == keyPressed
 	}
 
-	tpTime := time.Now()
+	//tpTime := time.Now()
 
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
@@ -163,16 +163,6 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 			player.drinkingHealthPotions = true
 		} else {
 			player.drinkingHealthPotions = false
-		}
-
-		if player.sname == "   creagod   " && win.Pressed(pixelgl.KeyLeftShift) {
-			if win.JustPressed(pixelgl.MouseButtonLeft) {
-				if dt := time.Since(tpTime).Seconds(); dt > time.Second.Seconds()/6 {
-					tpTime = time.Now()
-					tppos := player.cam.Unproject(win.MousePosition())
-					player.pos.X, player.pos.Y = tppos.X, tppos.Y
-				}
-			}
 		}
 
 		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
