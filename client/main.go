@@ -1992,7 +1992,7 @@ func (c *Chat) Send(s *socket.Socket) {
 }
 
 func (c *Chat) Write(win *pixelgl.Window) {
-	c.writing.WriteString(win.Typed())
+	// c.writing.WriteString(win.Typed())
 	if win.Typed() != "" {
 		c.swriting = fmt.Sprint(c.swriting, win.Typed())
 	}
@@ -2006,7 +2006,6 @@ func (c *Chat) Write(win *pixelgl.Window) {
 }
 
 func (c *Chat) Draw(win *pixelgl.Window, pos pixel.Vec) {
-
 	if c.chatting {
 		c.writing.Clear()
 		c.writing.WriteString(c.swriting)
