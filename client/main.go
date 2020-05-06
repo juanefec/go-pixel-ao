@@ -35,7 +35,7 @@ var (
 	second             = time.Tick(time.Second)
 	MaxMana            = 2324.0
 	MaxHealth          = 347.0
-	OnTargetSpellRange = 400.0
+	OnTargetSpellRange = 500.0
 	AOESpellRange      = 700.0
 	TrapSpellRange     = 100.0
 	FlashSpellRange    = 200.0
@@ -228,6 +228,8 @@ func run() {
 	go keyInputs(win, &player, cursor)
 	go GameUpdate(socket, &otherPlayers, &player, allSpells)
 	fps := 0
+	unatachedCam := false
+	offset := pixel.ZV
 	for !win.Closed() {
 		win.Clear(colornames.Forestgreen)
 		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
@@ -235,9 +237,14 @@ func run() {
 		player.cam = cam
 
 		if win.Pressed(pixelgl.KeyLeftShift) && win.Pressed(pixelgl.MouseButtonRight) {
-			newCenter := cam.Unproject(win.MousePosition()).Sub(player.pos)
+			if !unatachedCam {
+				unatachedCam = true
+				offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
+			}
+			newCenter := cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
 			win.SetMatrix(cam.Moved(newCenter))
 		} else {
+			unatachedCam = false
 			win.SetMatrix(cam)
 		}
 
@@ -256,8 +263,9 @@ func run() {
 		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
 		cursor.Draw(cam)
+
 		fps++
-		if win.JustPressed(pixelgl.KeyZ) {
+		if !player.chat.chatting && win.JustPressed(pixelgl.KeyZ) {
 			if Zoom == 2 {
 				Zoom = 1
 			} else {
@@ -1871,6 +1879,8 @@ type Player struct {
 	rooted                                                                    bool
 	kills, deaths                                                             int
 	playerMovementSpeed                                                       float64
+	colliding                                                                 bool
+	collitionDir                                                              string
 }
 
 func (p *Player) DrawHealthMana(win *pixelgl.Window) {
@@ -2327,6 +2337,12 @@ func NewResu(pos pixel.Vec) *Resu {
 }
 
 func (r *Resu) Draw(win *pixelgl.Window, cam pixel.Matrix, p *Player) {
+	// if r.CollidinMe(p.pos) {
+	// 	p.colliding = true
+	// 	p.collitionDir = p.dir
+	// } else {
+	// 	p.colliding = false
+	// }
 	if win.JustPressed(pixelgl.MouseButtonRight) {
 		mouse := cam.Unproject(win.MousePosition())
 		if r.OnMe(mouse) && p.dead {
@@ -2341,6 +2357,12 @@ func (r *Resu) Draw(win *pixelgl.Window, cam pixel.Matrix, p *Player) {
 
 func (r *Resu) OnMe(click pixel.Vec) bool {
 	b := click.X < r.PosBody.X+14 && click.X > r.PosBody.X-14 && click.Y < r.PosBody.Y+30 && click.Y > r.PosBody.Y-20
+	return b
+}
+
+func (r *Resu) CollidinMe(player pixel.Vec) bool {
+	b := player.X-14 < r.PosBody.X+14 && player.X+14 > r.PosBody.X-14 && player.Y-20 < r.PosBody.Y+20 && player.Y+20 > r.PosBody.Y-20
+
 	return b
 }
 
