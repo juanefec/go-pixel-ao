@@ -50,9 +50,33 @@ func LoginWindow() (Wizard, error) {
 	twilightSkin := Pictures["./images/penumbrasIcon.png"]
 	twilightIcon := pixel.NewSprite(twilightSkin, twilightSkin.Bounds())
 
+	monkName := text.New(pixel.V(0, 0), atlas)
+	monkName.Color = colornames.Cyan
+	fmt.Fprint(monkName, "Monk")
+
+	hunterName := text.New(pixel.V(0, 0), atlas)
+	hunterName.Color = colornames.Red
+	fmt.Fprint(hunterName, "Hunter")
+
+	sniperName := text.New(pixel.V(0, 0), atlas)
+	sniperName.Color = colornames.Blue
+	fmt.Fprint(sniperName, "Sniper")
+
+	darkName := text.New(pixel.V(0, 0), atlas)
+	darkName.Color = colornames.Darkgray
+	fmt.Fprint(darkName, "Pyro")
+
+	shamanName := text.New(pixel.V(0, 0), atlas)
+	shamanName.Color = colornames.Whitesmoke
+	fmt.Fprint(shamanName, "Shaman")
+
+	jumperName := text.New(pixel.V(0, 0), atlas)
+	jumperName.Color = colornames.Darkgoldenrod
+	fmt.Fprint(jumperName, "Jumper")
+
 	cfg := pixelgl.WindowConfig{
 		Title:  "Creative AO | Login",
-		Bounds: pixel.R(0, 0, 600, 500),
+		Bounds: pixel.R(0, 0, 900, 600),
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
@@ -94,20 +118,31 @@ func LoginWindow() (Wizard, error) {
 		}
 
 		if loginStep == ChooseWizard {
-			dist := 83.0
+			dist := 128.0
 			bPos := pixel.V(dist, 160)
 			rPos := pixel.V(dist*2, 160)
 			armbluPos := pixel.V(dist*3, 160)
 			darkPos := pixel.V(dist*4, 160)
 			druidPos := pixel.V(dist*5, 160)
 			twilightPos := pixel.V(dist*6, 160)
-
+			textOffset := pixel.V(-20, -40)
 			blueIcon.Draw(win, pixel.IM.Moved(bPos).Scaled(bPos, 2))
+			monkName.Draw(win, pixel.IM.Moved(bPos.Add(textOffset)).Scaled(bPos, 2))
+
 			redIcon.Draw(win, pixel.IM.Moved(rPos).Scaled(rPos, 2))
+			hunterName.Draw(win, pixel.IM.Moved(rPos.Add(textOffset)).Scaled(rPos, 2))
+
 			armbluIcon.Draw(win, pixel.IM.Moved(armbluPos).Scaled(armbluPos, 2))
+			sniperName.Draw(win, pixel.IM.Moved(armbluPos.Add(textOffset)).Scaled(armbluPos, 2))
+
 			darkIcon.Draw(win, pixel.IM.Moved(darkPos).Scaled(darkPos, 2))
+			darkName.Draw(win, pixel.IM.Moved(darkPos.Add(textOffset)).Scaled(darkPos, 2))
+
 			druidIcon.Draw(win, pixel.IM.Moved(druidPos).Scaled(druidPos, 2))
+			shamanName.Draw(win, pixel.IM.Moved(druidPos.Add(textOffset)).Scaled(druidPos, 2))
+
 			twilightIcon.Draw(win, pixel.IM.Moved(twilightPos).Scaled(twilightPos, 2))
+			jumperName.Draw(win, pixel.IM.Moved(twilightPos.Add(textOffset)).Scaled(twilightPos, 2))
 
 			choose.Draw(win, pixel.IM.Moved(win.Bounds().Center().Sub(choose.Bounds().Center()).Add(pixel.V(0, 0))).Scaled(win.Bounds().Center(), 2))
 			if win.Pressed(pixelgl.MouseButtonLeft) {

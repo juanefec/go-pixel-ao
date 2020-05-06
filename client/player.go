@@ -99,7 +99,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 		p.name.Color = colornames.Red
 	case BlueBody:
 		bodySheet = Pictures["./images/blueBody.png"]
-		p.name.Color = colornames.Darkcyan
+		p.name.Color = colornames.Cyan
 	case DarkMasterBody:
 		bodySheet = Pictures["./images/darkopshit.png"]
 		p.name.Color = colornames.Black
