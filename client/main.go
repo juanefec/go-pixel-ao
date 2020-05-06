@@ -209,7 +209,7 @@ func run() {
 	playerInfo := NewPlayerInfo(&player, &otherPlayers, allSpells)
 	resu := NewResu(pixel.V(2000, 2900))
 
-	socket := socket.NewSocket("190.247.147.18", 33333)
+	socket := socket.NewSocket("localhost", 33333)
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
@@ -1639,26 +1639,27 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				for i := 0; i <= len(players)-1; i++ {
 
 					p := players[i]
-					if p.ID != s.ClientID {
-						pd.AnimationsMutex.Lock()
-						player, ok := pd.CurrentAnimations[p.ID]
-						if !ok {
-							pd.Online++
-							wiz := Wizard{
-								Skin: SkinType(p.Skin),
-							}
-							np := NewPlayer(p.Name, &wiz)
-							pd.CurrentAnimations[p.ID] = &np
-							player, _ = pd.CurrentAnimations[p.ID]
+					// the following if will be commented temporally so current player is included in playersData
+					// if p.ID != s.ClientID {
+					pd.AnimationsMutex.Lock()
+					player, ok := pd.CurrentAnimations[p.ID]
+					if !ok {
+						pd.Online++
+						wiz := Wizard{
+							Skin: SkinType(p.Skin),
 						}
-						pd.AnimationsMutex.Unlock()
-						player.pos = pixel.V(p.X, p.Y)
-						player.dir = p.Dir
-						player.moving = p.Moving
-						player.dead = p.Dead
-						player.hp = p.HP
-						player.invisible = p.Invisible
+						np := NewPlayer(p.Name, &wiz)
+						pd.CurrentAnimations[p.ID] = &np
+						player, _ = pd.CurrentAnimations[p.ID]
 					}
+					pd.AnimationsMutex.Unlock()
+					player.pos = pixel.V(p.X, p.Y)
+					player.dir = p.Dir
+					player.moving = p.Moving
+					player.dead = p.Dead
+					player.hp = p.HP
+					player.invisible = p.Invisible
+					// }
 				}
 				break
 			case models.Spell:
@@ -1976,7 +1977,6 @@ func (c *Chat) WriteSent(message string) {
 
 func (c *Chat) Send(s *socket.Socket) {
 	c.ssent = c.swriting
-	c.sent.WriteString(c.ssent)
 	c.msgTimeout = time.Now()
 	chatMsg := &models.ChatMsg{
 		ID:      s.ClientID,
@@ -1992,7 +1992,7 @@ func (c *Chat) Send(s *socket.Socket) {
 }
 
 func (c *Chat) Write(win *pixelgl.Window) {
-	// c.writing.WriteString(win.Typed())
+	c.writing.WriteString(win.Typed())
 	if win.Typed() != "" {
 		c.swriting = fmt.Sprint(c.swriting, win.Typed())
 	}
@@ -2261,8 +2261,8 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 	}
 	if p.chat.chatting {
 		p.chat.Write(win)
+		p.chat.Draw(win, p.pos)
 	}
-	p.chat.Draw(win, p.pos)
 	if !p.invisible {
 		p.body.Draw(win, p.bodyMatrix)
 		p.head.Draw(win, p.headMatrix)

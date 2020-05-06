@@ -175,7 +175,13 @@ func (c *Client) readPump() {
 		}
 		msg := models.UnmarshallMesg(data.Bytes())
 		switch msg.Type {
-		case models.Chat, models.Spell:
+		case models.Chat:
+			c.game.eventBroadcast <- BroadcastEvent{
+				Client:  c,
+				Event:   msg.Type,
+				Payload: msg.Payload}
+			break
+		case models.Spell:
 			c.game.eventBroadcast <- BroadcastEvent{
 				Client:  c,
 				Event:   msg.Type,
@@ -269,7 +275,7 @@ func (g *Game) Run() {
 			select {
 			case event := <-g.eventBroadcast:
 				for c, ok := range g.clients {
-					if ok && c.ID != event.Client.ID {
+					if ok {
 						c.send <- models.NewMesg(event.Event, event.Payload)
 					}
 				}
