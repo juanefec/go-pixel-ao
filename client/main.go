@@ -11,9 +11,11 @@ import (
 
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
+	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/juanefec/go-pixel-ao/models"
 	"golang.org/x/image/colornames"
+	"golang.org/x/image/font/basicfont"
 )
 
 const (
@@ -72,6 +74,8 @@ var (
 	Pictures       map[string]pixel.Picture
 	Key            KeyConfig
 )
+var basicAtlas = text.NewAtlas(basicfont.Face7x13, text.ASCII)
+var chatlog = NewChatlog()
 
 func main() {
 	pixelgl.Run(run)
@@ -233,12 +237,11 @@ func run() {
 				offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
 			}
 			newCenter := cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
-			win.SetMatrix(cam.Moved(newCenter))
+			cam = cam.Moved(newCenter)
 		} else {
 			unatachedCam = false
-			win.SetMatrix(cam)
 		}
-
+		win.SetMatrix(cam)
 		forest.GrassBatch.Draw(win)
 		forest.FenceBatchHTOP.Draw(win)
 		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
@@ -253,7 +256,8 @@ func run() {
 		forest.FenceBatchHBOT.Draw(win)
 		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
-		cursor.Draw(cam)
+		chatlog.Draw(win)
+		cursor.Draw(cam, player.pos)
 
 		fps++
 		if !player.chat.chatting && win.JustPressed(pixelgl.KeyZ) {
@@ -482,7 +486,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 			case models.Chat:
 				chatMsg := models.ChatMsg{}
 				json.Unmarshal(msg.Payload, &chatMsg)
-				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.Message)
+				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.ID, chatMsg.Name, chatMsg.Message)
 			case models.UpdateRanking:
 				rankingMsg := []models.RankingPosMsg{}
 				json.Unmarshal(msg.Payload, &rankingMsg)

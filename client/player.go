@@ -13,7 +13,6 @@ import (
 	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/juanefec/go-pixel-ao/models"
 	"golang.org/x/image/colornames"
-	"golang.org/x/image/font/basicfont"
 )
 
 type Player struct {
@@ -55,10 +54,12 @@ type Player struct {
 func NewPlayer(name string, wizard *Wizard) Player {
 	p := &Player{}
 	p.sname = name
-	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
+
 	p.name = text.New(pixel.V(-28, 0), basicAtlas)
 
 	p.chat = Chat{
+		p:          p,
+		chatlog:    chatlog,
 		msgTimeout: time.Now(),
 		sent:       text.New(pixel.V(24, 0), basicAtlas),
 		writing:    text.New(pixel.V(24, 0), basicAtlas),
@@ -378,10 +379,11 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 		p.chat.Write(win)
 	}
 	p.chat.Draw(win, p.pos)
+	p.name.Draw(win, p.nameMatrix)
 	if !p.invisible {
 		p.body.Draw(win, p.bodyMatrix)
 		p.head.Draw(win, p.headMatrix)
-		p.name.Draw(win, p.nameMatrix)
+
 		if !p.dead {
 			p.bacu.Draw(win, p.bodyMatrix)
 			p.hat.Draw(win, p.hatMatrix)

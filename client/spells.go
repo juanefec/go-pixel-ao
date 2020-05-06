@@ -349,7 +349,7 @@ FBALLS:
 
 func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
 	dtproj := time.Since(sd.Caster.lastCastPrimary).Seconds()
-	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
+	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Charges > 0 && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if !sd.ChargingSpell {
 			sd.StartProjCharge = time.Now()
 			sd.ChargingSpell = true

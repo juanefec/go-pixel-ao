@@ -53,20 +53,20 @@ func (c *Cursor) SetNormalMode() {
 	c.Mode = Normal
 }
 
-func (c *Cursor) Draw(cam pixel.Matrix) {
+func (c *Cursor) Draw(cam pixel.Matrix, playerPos pixel.Vec) {
 	if c.Mode != Normal {
 		mouse := cam.Unproject(c.win.MousePosition())
-		center := cam.Unproject(c.win.Bounds().Center())
 		c.win.SetCursorVisible(false)
 		cross := imdraw.New(nil)
-		dist := Dist(mouse, center)
+		dist := Dist(mouse, playerPos)
 		if dist <= OnTargetSpellRange {
 			cross.Color = colornames.Black
 		} else {
+			pmouse := cam.Unproject(c.win.MousePosition())
 			cross.Color = colornames.Red
 			cross.Push(
-				mouse,
-				center.Add(VectorNormalize(mouse.Sub(center)).Scaled(OnTargetSpellRange)),
+				pmouse,
+				playerPos.Add(VectorNormalize(pmouse.Sub(playerPos)).Scaled(OnTargetSpellRange)),
 			)
 			cross.Line(1.65)
 		}

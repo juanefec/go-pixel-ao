@@ -11,9 +11,63 @@ import (
 	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/juanefec/go-pixel-ao/models"
+	"github.com/segmentio/ksuid"
 )
 
+const (
+	ChatMasgSpace = 25.0
+)
+
+type Chatlog struct {
+	msgs       []*ChatlogMsg
+	lastUpdate time.Time
+}
+
+type ChatlogMsg struct {
+	ID      ksuid.KSUID
+	sender  string
+	txt     *text.Text
+	tcreate time.Time
+}
+
+func NewChatlog() *Chatlog {
+	return &Chatlog{
+		msgs:       make([]*ChatlogMsg, 0),
+		lastUpdate: time.Now(),
+	}
+}
+
+func (cl *Chatlog) Load(id ksuid.KSUID, sender, message string, tcreate time.Time) {
+	//dt := time.Since(cl.lastUpdate)
+	cm := &ChatlogMsg{
+		ID:      id,
+		sender:  sender,
+		txt:     text.New(pixel.ZV, basicAtlas),
+		tcreate: tcreate,
+	}
+	fmt.Fprintf(cm.txt, "[%v]: %v", sender, message)
+	cl.msgs = append(cl.msgs, cm)
+}
+
+func (cl *Chatlog) Draw(win *pixelgl.Window) {
+	//dt := time.Since(cl.lastUpdate)
+	cl.lastUpdate = time.Now()
+	for i := 0; i < len(cl.msgs)-1; i++ {
+		if mdt := time.Since(cl.msgs[i].tcreate); mdt < time.Second*30 {
+			cl.msgs[i].txt.Draw(win, pixel.IM.Moved(pixel.V(250, 250-(float64(i)*ChatMasgSpace))))
+		} else {
+			if i < len(cl.msgs)-1 {
+				copy(cl.msgs[i:], cl.msgs[i+1:])
+			}
+			cl.msgs[len(cl.msgs)-1] = nil
+			cl.msgs = cl.msgs[:len(cl.msgs)-1]
+		}
+	}
+}
+
 type Chat struct {
+	p               *Player
+	chatlog         *Chatlog
 	msgTimeout      time.Time
 	chatting        bool
 	sent, writing   *text.Text
@@ -22,10 +76,11 @@ type Chat struct {
 	matrix          pixel.Matrix
 }
 
-func (c *Chat) WriteSent(message string) {
+func (c *Chat) WriteSent(id ksuid.KSUID, sender, message string) {
 	c.ssent = message
 	c.sent.WriteString(c.ssent)
 	c.msgTimeout = time.Now()
+	c.chatlog.Load(id, sender, c.ssent, c.msgTimeout)
 }
 
 func (c *Chat) Send(s *socket.Socket) {
@@ -43,11 +98,12 @@ func (c *Chat) Send(s *socket.Socket) {
 	s.O <- models.NewMesg(models.Chat, chatPayload)
 	c.swriting = ""
 	c.writing.Clear()
+	c.chatlog.Load(s.ClientID, c.p.sname, c.ssent, c.msgTimeout)
 }
 
 func (c *Chat) Write(win *pixelgl.Window) {
-	c.writing.WriteString(win.Typed())
-	if win.Typed() != "" {
+	if win.Typed() != "" && len(c.swriting) <= 80 {
+		c.writing.WriteString(win.Typed())
 		c.swriting = fmt.Sprint(c.swriting, win.Typed())
 	}
 	if win.JustPressed(pixelgl.KeyBackspace) || win.Repeated(pixelgl.KeyBackspace) {
