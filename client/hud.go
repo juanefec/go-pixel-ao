@@ -59,10 +59,16 @@ func (c *Cursor) Draw(cam pixel.Matrix) {
 		center := cam.Unproject(c.win.Bounds().Center())
 		c.win.SetCursorVisible(false)
 		cross := imdraw.New(nil)
-		if Dist(mouse, center) <= OnTargetSpellRange {
+		dist := Dist(mouse, center)
+		if dist <= OnTargetSpellRange {
 			cross.Color = colornames.Black
 		} else {
 			cross.Color = colornames.Red
+			cross.Push(
+				mouse,
+				center.Add(VectorNormalize(mouse.Sub(center)).Scaled(OnTargetSpellRange)),
+			)
+			cross.Line(1.65)
 		}
 		cross.EndShape = imdraw.SharpEndShape
 		cross.Push(
@@ -76,6 +82,7 @@ func (c *Cursor) Draw(cam pixel.Matrix) {
 		)
 		cross.Line(1.65)
 		cross.Draw(c.win)
+
 	} else {
 		c.win.SetCursorVisible(true)
 	}

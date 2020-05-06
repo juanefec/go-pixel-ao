@@ -27,7 +27,7 @@ var (
 	second             = time.Tick(time.Second)
 	MaxMana            = 2324.0
 	MaxHealth          = 347.0
-	OnTargetSpellRange = 500.0
+	OnTargetSpellRange = 450.0
 	AOESpellRange      = 700.0
 	TrapSpellRange     = 100.0
 	FlashSpellRange    = 200.0
@@ -73,10 +73,9 @@ var (
 	Key            KeyConfig
 )
 
-const (
-	message       = "Ping"
-	StopCharacter = "\r\n\r\n"
-)
+func main() {
+	pixelgl.Run(run)
+}
 
 //message order [id;name;playerX;playerY;dir;moving]
 
@@ -276,10 +275,6 @@ func run() {
 	}
 }
 
-func main() {
-	pixelgl.Run(run)
-}
-
 type WizardType int
 
 const (
@@ -363,112 +358,126 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 					newSpell.target = target
 					newSpell.matrix = &target.headMatrix
 				}
-
-				for i := range spells.OnTarget {
-					sd := spells.OnTarget[i]
-					if spell.SpellName == sd.SpellName {
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-						target.hp -= sd.Damage
-						if target.hp <= 0 {
-							target.hp = 0
-							target.dead = true
-							if s.ClientID == spell.TargetID {
-								dm := models.DeathMsg{
-									Killed:     s.ClientID,
-									KilledName: sd.Caster.wizard.Name,
-									Killer:     spell.ID,
-									KillerName: pd.CurrentAnimations[spell.ID].sname,
+				switch spell.SpellType {
+				case "on-target":
+					for i := range spells.OnTarget {
+						sd := spells.OnTarget[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							target.hp -= sd.Damage
+							if target.hp <= 0 {
+								target.hp = 0
+								target.dead = true
+								if s.ClientID == spell.TargetID {
+									dm := models.DeathMsg{
+										Killed:     s.ClientID,
+										KilledName: sd.Caster.wizard.Name,
+										Killer:     spell.ID,
+										KillerName: pd.CurrentAnimations[spell.ID].sname,
+									}
+									SendDeathEvent(s, dm)
 								}
-								SendDeathEvent(s, dm)
 							}
+							break
 						}
-						break
 					}
-				}
-				for i := range spells.Projectile {
-					sd := spells.Projectile[i]
-					if spell.SpellName == sd.SpellName {
-						caster := pd.CurrentAnimations[spell.ID]
-						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
-						centerMatrix := pixel.IM
-						switch spell.SpellName {
-						case "fireball":
-							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
-						case "icesnipe":
-							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
-						case "healshot", "manashot":
-							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
-						case "rockshot":
-							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
+				case "projectile":
+					for i := range spells.Projectile {
+						sd := spells.Projectile[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							centerMatrix := pixel.IM
+							switch spell.SpellName {
+							case "fireball":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+							case "icesnipe":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+							case "healshot", "manashot":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
+							case "rockshot":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
+							}
+							newSpell.caster = spell.ID
+							newSpell.vel = vel
+							newSpell.pos = caster.pos
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
 						}
-						newSpell.caster = spell.ID
-						newSpell.vel = vel
-						newSpell.pos = caster.pos
-						newSpell.matrix = &centerMatrix
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 					}
-				}
-				for i := range spells.ChargedProjectile {
-					sd := spells.ChargedProjectile[i]
-					if spell.SpellName == sd.SpellName {
-						caster := pd.CurrentAnimations[spell.ID]
-						vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
-						centerMatrix := pixel.IM
-						switch spell.SpellName {
-						case "arrowshot":
-							centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+				case "aoe":
+					for i := range spells.AOE {
+						sd := spells.AOE[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.pos = pixel.V(spell.X, spell.Y)
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
 						}
-						newSpell.chargeTime = spell.ChargeTime
-						newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
-						newSpell.caster = spell.ID
-						newSpell.vel = vel
-						newSpell.pos = caster.pos
-						newSpell.matrix = &centerMatrix
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 					}
-				}
-				for i := range spells.AOE {
-					sd := spells.AOE[i]
-					if spell.SpellName == sd.SpellName {
-						newSpell.pos = pixel.V(spell.X, spell.Y)
-						centerMatrix := pixel.IM.Moved(newSpell.pos)
-						newSpell.caster = spell.ID
-						newSpell.matrix = &centerMatrix
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+				case "casted-projectile":
+					for i := range spells.ChargedProjectile {
+						sd := spells.ChargedProjectile[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							centerMatrix := pixel.IM
+							if spell.SpellName == "arrowshot" {
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+							} else {
+								break
+							}
+							newSpell.chargeTime = spell.ChargeTime
+							newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
+							newSpell.caster = spell.ID
+							newSpell.vel = vel
+							newSpell.pos = caster.pos
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
 					}
-				}
-				for i := range spells.Trap {
-					sd := spells.Trap[i]
-					if spell.SpellName == sd.SpellName {
-						newSpell.pos = pixel.V(spell.X, spell.Y)
-						centerMatrix := pixel.IM.Moved(newSpell.pos)
-						newSpell.caster = spell.ID
-						newSpell.matrix = &centerMatrix
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+				case "trap":
+					for i := range spells.Trap {
+						sd := spells.Trap[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.pos = pixel.V(spell.X, spell.Y)
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
 					}
-				}
-				for i := range spells.Movement {
-					sd := spells.Movement[i]
-					if spell.SpellName == sd.SpellName {
-						caster := pd.CurrentAnimations[spell.ID]
-						newSpell.pos = caster.pos
-						centerMatrix := pixel.IM.Moved(newSpell.pos)
-						newSpell.caster = spell.ID
-						newSpell.matrix = &centerMatrix
-						newSpell.step = sd.Frames[0]
-						newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-						sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+				case "movement":
+					for i := range spells.Movement {
+						sd := spells.Movement[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							newSpell.pos = caster.pos
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
 					}
+
 				}
 			case models.Chat:
 				chatMsg := models.ChatMsg{}
