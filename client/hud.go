@@ -320,7 +320,7 @@ func getRectangleVecs(pos, size pixel.Vec) []pixel.Vec {
 
 func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor, wizard *Wizard) {
 	winSize := win.Bounds().Max
-	topRigthInfoPos := cam.Unproject(winSize.Add(pixel.V(-330, -70)))
+	topRigthInfoPos := cam.Unproject(winSize).Add(pixel.V(-180, -30))
 	info := imdraw.New(nil)
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape
