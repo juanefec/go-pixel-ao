@@ -92,6 +92,7 @@ func (c *Chat) Send(s *socket.Socket) {
 	c.msgTimeout = time.Now()
 	chatMsg := &models.ChatMsg{
 		ID:      s.ClientID,
+		Name:    c.p.sname,
 		Message: c.ssent,
 	}
 	chatPayload, err := json.Marshal(chatMsg)
