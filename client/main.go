@@ -256,7 +256,7 @@ func run() {
 		forest.FenceBatchHBOT.Draw(win)
 		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
-		chatlog.Draw(win)
+		chatlog.Draw(win, cam)
 		cursor.Draw(cam, player.pos)
 
 		fps++

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	ChatMasgSpace = 25.0
+	ChatMasgSpace = 14.0
 )
 
 type Chatlog struct {
@@ -24,10 +24,10 @@ type Chatlog struct {
 }
 
 type ChatlogMsg struct {
-	ID      ksuid.KSUID
-	sender  string
-	txt     *text.Text
-	tcreate time.Time
+	ID              ksuid.KSUID
+	sender, message string
+	txt             *text.Text
+	tcreate         time.Time
 }
 
 func NewChatlog() *Chatlog {
@@ -42,19 +42,22 @@ func (cl *Chatlog) Load(id ksuid.KSUID, sender, message string, tcreate time.Tim
 	cm := &ChatlogMsg{
 		ID:      id,
 		sender:  sender,
+		message: message,
 		txt:     text.New(pixel.ZV, basicAtlas),
 		tcreate: tcreate,
 	}
-	fmt.Fprintf(cm.txt, "[%v]: %v", sender, message)
+	fmt.Fprintf(cm.txt, "[%v]: %v\n", sender, message)
 	cl.msgs = append(cl.msgs, cm)
 }
 
-func (cl *Chatlog) Draw(win *pixelgl.Window) {
+func (cl *Chatlog) Draw(win *pixelgl.Window, cam pixel.Matrix) {
 	//dt := time.Since(cl.lastUpdate)
 	cl.lastUpdate = time.Now()
-	for i := 0; i < len(cl.msgs)-1; i++ {
+	for i := 0; i <= len(cl.msgs)-1; i++ {
+		//cl.msgs[i].txt.Clear()
 		if mdt := time.Since(cl.msgs[i].tcreate); mdt < time.Second*30 {
-			cl.msgs[i].txt.Draw(win, pixel.IM.Moved(pixel.V(250, 250-(float64(i)*ChatMasgSpace))))
+			//fmt.Fprintf(cl.msgs[i].txt, "[%v]: %v ", cl.msgs[i].sender, cl.msgs[i].message)
+			cl.msgs[i].txt.Draw(win, pixel.IM.Moved(cam.Unproject(pixel.V(190, (win.Bounds().H()-(win.Bounds().H()/20)-(float64(i)*ChatMasgSpace))))))
 		} else {
 			if i < len(cl.msgs)-1 {
 				copy(cl.msgs[i:], cl.msgs[i+1:])
