@@ -47,6 +47,9 @@ func (cl *Chatlog) Load(id ksuid.KSUID, sender, message string, tcreate time.Tim
 		tcreate: tcreate,
 	}
 	fmt.Fprintf(cm.txt, "[%v]: %v\n", sender, message)
+	if len(cl.msgs) >= 8 {
+		cl.msgs = cl.msgs[1:]
+	}
 	cl.msgs = append(cl.msgs, cm)
 }
 
@@ -87,22 +90,24 @@ func (c *Chat) WriteSent(id ksuid.KSUID, sender, message string) {
 }
 
 func (c *Chat) Send(s *socket.Socket) {
-	c.ssent = c.swriting
-	c.sent.WriteString(c.ssent)
-	c.msgTimeout = time.Now()
-	chatMsg := &models.ChatMsg{
-		ID:      s.ClientID,
-		Name:    c.p.sname,
-		Message: c.ssent,
+	if c.swriting != "" {
+		c.ssent = c.swriting
+		c.sent.WriteString(c.ssent)
+		c.msgTimeout = time.Now()
+		chatMsg := &models.ChatMsg{
+			ID:      s.ClientID,
+			Name:    c.p.sname,
+			Message: c.ssent,
+		}
+		chatPayload, err := json.Marshal(chatMsg)
+		if err != nil {
+			return
+		}
+		s.O <- models.NewMesg(models.Chat, chatPayload)
+		c.swriting = ""
+		c.writing.Clear()
+		c.chatlog.Load(s.ClientID, c.p.sname, c.ssent, c.msgTimeout)
 	}
-	chatPayload, err := json.Marshal(chatMsg)
-	if err != nil {
-		return
-	}
-	s.O <- models.NewMesg(models.Chat, chatPayload)
-	c.swriting = ""
-	c.writing.Clear()
-	c.chatlog.Load(s.ClientID, c.p.sname, c.ssent, c.msgTimeout)
 }
 
 func (c *Chat) Write(win *pixelgl.Window) {
