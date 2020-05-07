@@ -2,31 +2,38 @@ package models
 
 import (
 	"encoding/json"
+	"math"
+	"strings"
 
 	"github.com/segmentio/ksuid"
 )
 
 // Event type represents a message type where:
 // 	-UpdateClient: client <- server
-// 	-UpdateServer: client -> server
+// 	-AddNewPlayer: client -> server
 // 	-Spell:		   client <-> server
 type Event int
 
 // Events
 const (
 	UpdateClient Event = iota
-	UpdateServer
+	AddNewPlayer
 	Spell
 	Chat
+	Move
 	Death
 	UpdateRanking
 	ConfirmIDReception
 	Disconect
 )
 
-func (d Event) String() string {
-	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Chat", "Death", "UpdateRanking", "Disconect"}[d]
-}
+const (
+	PlayerBaseSpeed = 5.0
+)
+
+var (
+	DiagonalPlayerBaseSpeed = PlayerBaseSpeed / math.Sqrt(2)
+)
 
 type Mesg struct {
 	Type    Event           `json:"event"`
@@ -66,22 +73,38 @@ type SpellMsg struct {
 }
 
 type PlayerMsg struct {
-	ID        ksuid.KSUID `json:"id"`
-	Name      string      `json:"name"`
-	Skin      int         `json:"skin"`
-	HP        float64     `json:"hp"`
-	X         float64     `json:"x"`
-	Y         float64     `json:"y"`
-	Dir       string      `json:"dir"`
-	Moving    bool        `json:"moving"`
-	Dead      bool        `json:"dead"`
-	Invisible bool        `json:"invisible"`
+	ID                ksuid.KSUID `json:"id"`
+	Name              string      `json:"name"`
+	Skin              int         `json:"skin"`
+	HP                float64     `json:"hp"`
+	X                 float64     `json:"x"`
+	Y                 float64     `json:"y"`
+	MovementDirection string      `json:"dir"`
+	Dead              bool        `json:"dead"`
+	Invisible         bool        `json:"invisible"`
+}
+
+func (p *PlayerMsg) UpdatePlayer() {
+	if strings.Contains(p.MovementDirection, "U") {
+		p.Y += PlayerBaseSpeed
+	} else if strings.Contains(p.MovementDirection, "D") {
+		p.Y -= PlayerBaseSpeed
+	}
+	if strings.Contains(p.MovementDirection, "R") {
+		p.X += PlayerBaseSpeed
+	} else if strings.Contains(p.MovementDirection, "L") {
+		p.X -= PlayerBaseSpeed
+	}
 }
 
 type ChatMsg struct {
 	ID      ksuid.KSUID `json:"id"`
-	Name    string      `json:"name"`
 	Message string      `json:"message"`
+}
+
+type MoveMsg struct {
+	ID        ksuid.KSUID `json:"id"`
+	Direction string      `json:"direction"`
 }
 
 type DeathMsg struct {

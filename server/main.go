@@ -16,6 +16,10 @@ import (
 	"github.com/segmentio/ksuid"
 )
 
+var (
+	UpdateInterval = time.Millisecond * 20
+)
+
 func main() {
 
 	port := 33333
@@ -175,20 +179,20 @@ func (c *Client) readPump() {
 		}
 		msg := models.UnmarshallMesg(data.Bytes())
 		switch msg.Type {
+		case models.AddNewPlayer:
+			c.game.AddNewPlayer(msg.Payload)
+			break
 		case models.Chat:
 			c.game.eventBroadcast <- BroadcastEvent{
 				Client:  c,
 				Event:   msg.Type,
 				Payload: msg.Payload}
 			break
+		case models.Move:
+			c.game.HandleMovementChange(msg.Payload)
+			break
 		case models.Spell:
 			c.game.eventBroadcast <- BroadcastEvent{
-				Client:  c,
-				Event:   msg.Type,
-				Payload: msg.Payload}
-			break
-		case models.UpdateServer:
-			c.game.clientsUpdate <- BroadcastEvent{
 				Client:  c,
 				Event:   msg.Type,
 				Payload: msg.Payload}
@@ -292,13 +296,11 @@ func (g *Game) Run() {
 		}
 	}()
 
+	go g.UpdateWorld()
+
 	logger := time.Tick(time.Second * 5)
 	for {
 		select {
-		case msg := <-g.clientsUpdate:
-			g.UpdateServer(msg)
-			msg.Client.send <- g.UpdateClient(msg.Client)
-
 		case client := <-g.register:
 			g.clients[client] = true
 
@@ -328,37 +330,57 @@ func (g *Game) Run() {
 		case <-logger:
 			log.Println("player list len: ", len(g.Players))
 		}
-
 	}
 }
 
-func (g *Game) UpdateServer(message BroadcastEvent) {
+func (g *Game) AddNewPlayer(payload json.RawMessage) {
 	var msg models.PlayerMsg
-	err := json.Unmarshal(message.Payload, &msg)
+	err := json.Unmarshal(payload, &msg)
 	if err == nil {
-
 		g.Pmutex.Lock()
 		if _, ok := g.Players[msg.ID]; !ok {
 			g.Online++
 		}
 		g.Players[msg.ID] = &msg
 		g.Pmutex.Unlock()
-
 	} else {
 		log.Printf("err: %v", err.Error())
+	}
+	log.Println(g.Players)
+}
 
+func (g *Game) UpdateWorld() {
+	updateIntervalEvent := time.Tick(UpdateInterval)
+	for {
+		select {
+		case <-updateIntervalEvent:
+			for _, player := range g.Players {
+				player.UpdatePlayer()
+			}
+			g.UpdateClients()
+		}
 	}
 }
 
-func (g *Game) UpdateClient(c *Client) []byte {
-
+func (g *Game) UpdateClients() {
 	g.Pmutex.RLock()
 	playerSlice := getPlayerList(g.Players)
 	g.Pmutex.RUnlock()
 
 	playersMsg, _ := json.Marshal(playerSlice)
-	msg := models.NewMesg(models.UpdateClient, playersMsg)
-	return msg
+
+	g.eventBroadcast <- BroadcastEvent{
+		Event:   models.UpdateClient,
+		Payload: playersMsg}
+}
+
+func (g *Game) HandleMovementChange(payload json.RawMessage) {
+	move := models.MoveMsg{}
+	err := json.Unmarshal(payload, &move)
+	if err != nil {
+		return
+	}
+	g.Players[move.ID].MovementDirection = move.Direction
 }
 
 func getPlayerList(m map[ksuid.KSUID]*models.PlayerMsg) []*models.PlayerMsg {

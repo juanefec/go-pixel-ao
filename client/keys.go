@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/faiface/pixel/pixelgl"
+	"github.com/juanefec/go-pixel-ao/client/socket"
+	"github.com/juanefec/go-pixel-ao/models"
 )
 
 type MapBound float64
@@ -25,8 +28,7 @@ type KeyConfig struct {
 	Azules   int `json:"azules_key"`
 }
 
-func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
-	last := time.Now()
+func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, socket *socket.Socket) {
 	const (
 		KeyUp    = pixelgl.KeyW
 		KeyDown  = pixelgl.KeyS
@@ -34,109 +36,63 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		KeyRight = pixelgl.KeyD
 	)
 
-	timeMap := map[pixelgl.Button]int{
-		KeyUp:    -1,
-		KeyDown:  -1,
-		KeyLeft:  -1,
-		KeyRight: -1,
-	}
-
-	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
-		var key pixelgl.Button
-		min := 99999999999999
-		for k, v := range m {
-			if v < min && v >= 0 {
-				key = k
-				min = v
-			}
-		}
-		return key == keyPressed
+	directionKeyStatuses := map[pixelgl.Button]bool{
+		KeyUp:    false,
+		KeyDown:  false,
+		KeyLeft:  false,
+		KeyRight: false,
 	}
 
 	tpTime := time.Now()
 
+	updateMovement := func() {
+		moveMsg := &models.MoveMsg{
+			ID:        socket.ClientID,
+			Direction: "",
+		}
+
+		if directionKeyStatuses[KeyUp] {
+			moveMsg.Direction += "U"
+		} else if directionKeyStatuses[KeyDown] {
+			moveMsg.Direction += "D"
+		}
+		if directionKeyStatuses[KeyLeft] {
+			moveMsg.Direction += "L"
+		} else if directionKeyStatuses[KeyRight] {
+			moveMsg.Direction += "R"
+		}
+
+		movePayload, err := json.Marshal(moveMsg)
+		if err != nil {
+			return
+		}
+		socket.O <- models.NewMesg(models.Move, movePayload)
+	}
+
+	checkMovementKey := func(keyToCheck pixelgl.Button, inverseKey pixelgl.Button) {
+		if (win.JustPressed(keyToCheck) || win.Pressed(keyToCheck)) && !directionKeyStatuses[inverseKey] && !directionKeyStatuses[keyToCheck] {
+			directionKeyStatuses[keyToCheck] = true
+			updateMovement()
+		}
+		if win.JustReleased(keyToCheck) {
+			directionKeyStatuses[keyToCheck] = false
+			updateMovement()
+		}
+	}
+
 	for !win.Closed() {
-		dt := time.Since(last).Seconds()
-		last = time.Now()
+		if player.chat.chatting {
+			for key := range directionKeyStatuses {
+				directionKeyStatuses[key] = false
+			}
+			updateMovement()
+		}
+
 		if !player.chat.chatting && !player.rooted {
-			var axisX bool
-			dist := .0
-			if win.Pressed(KeyLeft) {
-				if latestPressed(KeyLeft, timeMap) {
-					player.moving = true
-					player.dir = "left"
-					if player.pos.X > Left {
-						axisX = true
-						dist -= player.playerMovementSpeed * dt
-						timeMap[KeyLeft] = 0
-					} else {
-						player.moving = false
-					}
-				}
-				timeMap[KeyLeft]++
-			} else {
-				timeMap[KeyLeft] = -1
-			}
-
-			if win.Pressed(KeyRight) {
-				if latestPressed(KeyRight, timeMap) {
-					player.moving = true
-					player.dir = "right"
-					if player.pos.X < Right {
-						axisX = true
-						dist += player.playerMovementSpeed * dt
-						timeMap[KeyRight] = 0
-					} else {
-						player.moving = false
-					}
-				}
-				timeMap[KeyRight]++
-			} else {
-				timeMap[KeyRight] = -1
-			}
-
-			if win.Pressed(KeyDown) {
-				if latestPressed(KeyDown, timeMap) {
-					player.moving = true
-					player.dir = "down"
-					if player.pos.Y > Bottom {
-						axisX = false
-						dist -= player.playerMovementSpeed * dt
-						timeMap[KeyDown] = 0
-					} else {
-						player.moving = false
-					}
-				}
-				timeMap[KeyDown]++
-
-			} else {
-				timeMap[KeyDown] = -1
-			}
-
-			if win.Pressed(KeyUp) {
-				if latestPressed(KeyUp, timeMap) {
-					player.moving = true
-					player.dir = "up"
-					if player.pos.Y < Top {
-						axisX = false
-						dist += player.playerMovementSpeed * dt
-						timeMap[KeyUp] = 0
-					} else {
-						player.moving = false
-					}
-				}
-				timeMap[KeyUp]++
-			} else {
-				timeMap[KeyUp] = -1
-			}
-
-			if player.moving {
-				if axisX {
-					player.pos.X += dist
-				} else {
-					player.pos.Y += dist
-				}
-			}
+			checkMovementKey(KeyLeft, KeyRight)
+			checkMovementKey(KeyRight, KeyLeft)
+			checkMovementKey(KeyUp, KeyDown)
+			checkMovementKey(KeyDown, KeyUp)
 
 			if win.JustPressed(pixelgl.Button(Key.Explo)) {
 				cursor.SetSpellExploMode()
@@ -173,10 +129,6 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 					player.pos.X, player.pos.Y = tppos.X, tppos.Y
 				}
 			}
-		}
-
-		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
-			player.moving = false
 		}
 	}
 }

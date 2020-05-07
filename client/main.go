@@ -225,9 +225,10 @@ func run() {
 		panic(err)
 	}
 	cursor := NewCursor(win)
-	go keyInputs(win, &player, cursor)
+	go keyInputs(win, &player, cursor, socket)
 	go GameUpdate(socket, &otherPlayers, &player, allSpells)
 	fps := 0
+	player.clientUpdate(socket)
 	for !win.Closed() {
 		win.Clear(colornames.Forestgreen)
 		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
@@ -272,7 +273,6 @@ func run() {
 		default:
 		}
 		win.Update()
-		player.clientUpdate(socket)
 	}
 }
 
@@ -1632,10 +1632,8 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 			msg := models.UnmarshallMesg(data)
 			switch msg.Type {
 			case models.UpdateClient:
-
 				players := []*models.PlayerMsg{}
 				json.Unmarshal(msg.Payload, &players)
-
 				for i := 0; i <= len(players)-1; i++ {
 
 					p := players[i]
@@ -1654,8 +1652,8 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 					}
 					pd.AnimationsMutex.Unlock()
 					player.pos = pixel.V(p.X, p.Y)
-					player.dir = p.Dir
-					player.moving = p.Moving
+					player.dir = p.MovementDirection
+					player.moving = p.MovementDirection != ""
 					player.dead = p.Dead
 					player.hp = p.HP
 					player.invisible = p.Invisible
@@ -2114,7 +2112,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.deadHeadFrames = deadHeadFrames
 	p.deadPic = &deadSheet
 	p.deadHeadPic = &deadHeadSheet
-	p.dir = "down"
+	p.dir = ""
 	p.pos = pixel.V(2000, 2600)
 	p.maxmp = MaxMana
 	p.maxhp = MaxHealth
@@ -2144,24 +2142,22 @@ func (p *Player) InsideRaduis(center pixel.Vec, r float64) bool {
 
 func (p *Player) clientUpdate(s *socket.Socket) {
 	p.playerUpdate = &models.PlayerMsg{
-		ID:        s.ClientID,
-		Name:      p.sname,
-		Skin:      int(p.bodySkin),
-		HP:        p.hp,
-		X:         p.pos.X,
-		Y:         p.pos.Y,
-		Dir:       p.dir,
-		Moving:    p.moving,
-		Dead:      p.dead,
-		Invisible: p.invisible,
+		ID:                s.ClientID,
+		Name:              p.sname,
+		Skin:              int(p.bodySkin),
+		HP:                p.hp,
+		X:                 p.pos.X,
+		Y:                 p.pos.Y,
+		MovementDirection: p.dir,
+		Dead:              p.dead,
+		Invisible:         p.invisible,
 	}
 	playerMsg, err := json.Marshal(p.playerUpdate)
 	if err != nil {
 		return
 	}
 	p.playerUpdate = &models.PlayerMsg{}
-	s.O <- models.NewMesg(models.UpdateServer, playerMsg)
-
+	s.O <- models.NewMesg(models.AddNewPlayer, playerMsg)
 }
 
 func (p *Player) Update() {
@@ -2284,7 +2280,7 @@ func (p *Player) getNextBodyFrame(dirFrames []int, part []pixel.Rect) pixel.Rect
 	if p.moving {
 		p.bodyStep += (p.playerMovementSpeed / 15) * dt
 		newFrame := int(p.bodyStep)
-		if (newFrame <= 5 && (p.dir == "up" || p.dir == "down")) || (newFrame <= 4 && (p.dir == "right" || p.dir == "left")) {
+		if (newFrame <= 5 && (p.dir == "U" || p.dir == "D")) || (newFrame <= 4 && (p.dir == "R" || p.dir == "L")) {
 			return part[dirFrames[newFrame]]
 		}
 	}
@@ -2298,7 +2294,7 @@ func (p *Player) getNextDeadFrame(dirFrames []int) pixel.Rect {
 	if p.moving {
 		p.bodyStep += 7 * dt
 		newFrame := int(p.bodyStep)
-		if (newFrame <= 2 && (p.dir == "up" || p.dir == "down")) || (newFrame <= 2 && (p.dir == "right" || p.dir == "left")) {
+		if (newFrame <= 2 && (p.dir == "Y" || p.dir == "D")) || (newFrame <= 2 && (p.dir == "R" || p.dir == "L")) {
 			return p.deadFrames[dirFrames[newFrame]]
 		}
 	}
