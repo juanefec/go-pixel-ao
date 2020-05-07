@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/color"
+	"strings"
 	"time"
 
 	"github.com/faiface/pixel"
@@ -46,7 +47,7 @@ func (cl *Chatlog) Load(id ksuid.KSUID, sender, message string, tcreate time.Tim
 		txt:     text.New(pixel.ZV, basicAtlas),
 		tcreate: tcreate,
 	}
-	fmt.Fprintf(cm.txt, "[%v]: %v\n", sender, message)
+	fmt.Fprintf(cm.txt, "[%v]: %v\n", strings.TrimSpace(sender), message)
 	if len(cl.msgs) >= 8 {
 		cl.msgs = cl.msgs[1:]
 	}

@@ -225,18 +225,27 @@ func run() {
 	fps := 0
 	unatachedCam := false
 	offset := pixel.ZV
+	newCenter := pixel.ZV
 	for !win.Closed() {
 		win.Clear(colornames.Forestgreen)
 		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
 
 		player.cam = cam
 
-		if win.Pressed(pixelgl.KeyLeftShift) && win.Pressed(pixelgl.MouseButtonRight) {
-			if !unatachedCam {
-				unatachedCam = true
-				offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
+		if win.Pressed(pixelgl.KeyLeftShift) {
+
+			if win.Pressed(pixelgl.MouseButtonRight) {
+
+				if !unatachedCam {
+					unatachedCam = true
+					offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
+					newCenter = cam.Unproject(win.MousePosition()).Sub(newCenter).Sub(offset)
+
+				}
+				newCenter = cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
+			} else {
+				unatachedCam = false
 			}
-			newCenter := cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
 			cam = cam.Moved(newCenter)
 		} else {
 			unatachedCam = false
