@@ -31,10 +31,6 @@ const (
 	PlayerBaseSpeed = 5.0
 )
 
-var (
-	DiagonalPlayerBaseSpeed = PlayerBaseSpeed / math.Sqrt(2)
-)
-
 type Mesg struct {
 	Type    Event           `json:"event"`
 	Payload json.RawMessage `json:"payload"`
@@ -85,15 +81,20 @@ type PlayerMsg struct {
 }
 
 func (p *PlayerMsg) UpdatePlayer() {
+	speed := PlayerBaseSpeed
+	if len(p.MovementDirection) == 2 {
+		speed = PlayerBaseSpeed / math.Sqrt(2)
+	}
+
 	if strings.Contains(p.MovementDirection, "U") {
-		p.Y += PlayerBaseSpeed
+		p.Y += speed
 	} else if strings.Contains(p.MovementDirection, "D") {
-		p.Y -= PlayerBaseSpeed
+		p.Y -= speed
 	}
 	if strings.Contains(p.MovementDirection, "R") {
-		p.X += PlayerBaseSpeed
+		p.X += speed
 	} else if strings.Contains(p.MovementDirection, "L") {
-		p.X -= PlayerBaseSpeed
+		p.X -= speed
 	}
 }
 
