@@ -208,10 +208,10 @@ func run() {
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title: "Creative AO",
-		//Monitor: pixelgl.PrimaryMonitor(),
-		Bounds: pixel.R(0, 0, 1360, 840),
-		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
+		Title:   "Creative AO",
+		Monitor: pixelgl.PrimaryMonitor(),
+		Bounds:  pixel.R(0, 0, 1360, 840),
+		Icon:    []pixel.Picture{Pictures["./images/gameIcon.png"]},
 		//VSync:  true,
 	}
 

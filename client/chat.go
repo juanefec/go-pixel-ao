@@ -55,13 +55,10 @@ func (cl *Chatlog) Load(id ksuid.KSUID, sender, message string, tcreate time.Tim
 }
 
 func (cl *Chatlog) Draw(win *pixelgl.Window, cam pixel.Matrix) {
-	//dt := time.Since(cl.lastUpdate)
 	cl.lastUpdate = time.Now()
 	for i := 0; i <= len(cl.msgs)-1; i++ {
-		//cl.msgs[i].txt.Clear()
 		if mdt := time.Since(cl.msgs[i].tcreate); mdt < time.Second*30 {
-			//fmt.Fprintf(cl.msgs[i].txt, "[%v]: %v ", cl.msgs[i].sender, cl.msgs[i].message)
-			cl.msgs[i].txt.Draw(win, pixel.IM.Moved(cam.Unproject(pixel.V(190, (win.Bounds().H()-(win.Bounds().H()/20)-(float64(i)*ChatMasgSpace))))))
+			cl.msgs[i].txt.Draw(win, pixel.IM.Moved(cam.Unproject(pixel.V(win.Bounds().W()/6, (win.Bounds().H()-(win.Bounds().H()/40)-(float64(i)*ChatMasgSpace))))))
 		} else {
 			if i < len(cl.msgs)-1 {
 				copy(cl.msgs[i:], cl.msgs[i+1:])
