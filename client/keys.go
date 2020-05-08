@@ -25,6 +25,8 @@ type KeyConfig struct {
 	Azules         int `json:"azules_key"`
 }
 
+var min = 99999999999999
+
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	last := time.Now()
 	const (
@@ -43,7 +45,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 
 	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
 		var key pixelgl.Button
-		min := 99999999999999
+		min := min
 		for k, v := range m {
 			if v < min && v >= 0 {
 				key = k
@@ -65,7 +67,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyLeft, timeMap) {
 					player.moving = true
 					player.dir = "left"
-					if player.pos.X > Left {
+					if player.pos.X > Left && player.collitionDir != "left" {
 						axisX = true
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyLeft] = 0
@@ -82,7 +84,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyRight, timeMap) {
 					player.moving = true
 					player.dir = "right"
-					if player.pos.X < Right {
+					if player.pos.X < Right && player.collitionDir != "right" {
 						axisX = true
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyRight] = 0
@@ -99,7 +101,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyDown, timeMap) {
 					player.moving = true
 					player.dir = "down"
-					if player.pos.Y > Bottom {
+					if player.pos.Y > Bottom && player.collitionDir != "down" {
 						axisX = false
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyDown] = 0
@@ -117,7 +119,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyUp, timeMap) {
 					player.moving = true
 					player.dir = "up"
-					if player.pos.Y < Top {
+					if player.pos.Y < Top && player.collitionDir != "up" {
 						axisX = false
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyUp] = 0

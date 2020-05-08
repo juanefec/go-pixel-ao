@@ -41,8 +41,8 @@ func (s Skins) BatchClear() {
 		s[i].Batch.Clear()
 	}
 }
-func (s Skins) DrawToBatch(p *Player) {
-	p.Update()
+func (s Skins) DrawToBatch(p *Player, pl *Player) {
+	p.Update(pl)
 	if !p.dead && !p.invisible {
 		p.body.Draw(s[p.bodySkin].Batch, p.bodyMatrix)
 		p.bacu.Draw(s[p.staffSkin].Batch, p.bodyMatrix)
@@ -101,12 +101,12 @@ func NewPlayersData() PlayersData {
 	return pd
 }
 
-func (pd *PlayersData) Draw(win *pixelgl.Window) {
+func (pd *PlayersData) Draw(win *pixelgl.Window, pl *Player) {
 	pd.Skins.BatchClear()
 	pd.AnimationsMutex.RLock()
 	for _, p := range pd.CurrentAnimations {
 		pd.AnimationsMutex.RUnlock()
-		pd.Skins.DrawToBatch(p)
+		pd.Skins.DrawToBatch(p, pl)
 		if !p.invisible {
 			p.name.Draw(win, p.nameMatrix.Moved(pixel.V(0, 4)))
 			p.chat.Draw(win, p.pos)

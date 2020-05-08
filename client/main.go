@@ -208,10 +208,10 @@ func run() {
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title:   "Creative AO",
-		Monitor: pixelgl.PrimaryMonitor(),
-		Bounds:  pixel.R(0, 0, 1360, 840),
-		Icon:    []pixel.Picture{Pictures["./images/gameIcon.png"]},
+		Title: "Creative AO",
+		//Monitor: pixelgl.PrimaryMonitor(),
+		Bounds: pixel.R(0, 0, 1360, 840),
+		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
 		//VSync:  true,
 	}
 
@@ -255,7 +255,7 @@ func run() {
 		forest.FenceBatchHTOP.Draw(win)
 		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
 		resu.Draw(win, cam, &player)
-		otherPlayers.Draw(win)
+		otherPlayers.Draw(win, &player)
 		player.Draw(win, socket)
 		player.DrawIngameHud(win, allSpells.ChargedProjectile[0])
 		//buda.Draw(win)

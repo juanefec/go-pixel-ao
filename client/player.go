@@ -249,6 +249,42 @@ func (p *Player) OnMe(click pixel.Vec) bool {
 	return r
 }
 
+func (p *Player) CollidingCheck(pp pixel.Vec) {
+	// tloffset := pixel.V(-14, 30)
+	// tlp := p.pos.Add(tloffset) // rects ar 28x50
+	// tlpp := pp.Add(tloffset)
+	//r := (tlp.X+28) >= tlpp.X && tlp.X <= (tlpp.X+28) && (tlp.Y-50) >= tlpp.Y && tlp.Y <= (tlpp.Y-50)
+	if p.moving {
+		r := pp.X-12 < p.pos.X+12 && pp.X+12 > p.pos.X-12 && pp.Y-12 < p.pos.Y+12 && pp.Y+12 > p.pos.Y-12
+		if r {
+			switch true {
+			case (pp.X+12 > p.pos.X-12) && p.dir == "left":
+				maxDepth := (pp.X + 12) - (p.pos.X - 12)
+				p.pos.X += maxDepth
+				p.collitionDir = p.dir
+
+			case (pp.X-12 < p.pos.X+12 && p.dir == "right"):
+				maxDepth := (p.pos.X + 12) - (pp.X - 12)
+				p.pos.X -= maxDepth
+				p.collitionDir = p.dir
+
+			case (pp.Y+12 > p.pos.Y-12) && p.dir == "down":
+				maxDepth := (pp.Y + 12) - (p.pos.Y - 12)
+				p.pos.Y += maxDepth
+				p.collitionDir = p.dir
+
+			case (pp.Y-12 < p.pos.Y+12) && p.dir == "up":
+				maxDepth := (p.pos.Y + 12) - (pp.Y - 12)
+				p.pos.Y -= maxDepth
+				p.collitionDir = p.dir
+
+			}
+		} else {
+			p.collitionDir = ""
+		}
+	}
+}
+
 func (p *Player) OnTrap(click pixel.Vec) bool {
 	r := click.X < p.pos.X+12 && click.X > p.pos.X-12 && click.Y < p.pos.Y+5 && click.Y > p.pos.Y-20
 	return r
@@ -280,8 +316,11 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 
 }
 
-func (p *Player) Update() {
+func (p *Player) Update(pl *Player) {
 	if !p.dead {
+		if pl != nil {
+			pl.CollidingCheck(p.pos)
+		}
 		switch p.dir {
 		case "up":
 			p.headFrame = p.headFrames[3]
@@ -367,8 +406,12 @@ func (p *Player) Update() {
 	}
 }
 
+func (p *Player) CheckColitions(pp *Player) {
+
+}
+
 func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
-	p.Update()
+	p.Update(nil)
 	if win.JustPressed(pixelgl.KeyEnter) {
 		p.chat.chatting = !p.chat.chatting
 		if !p.chat.chatting {
