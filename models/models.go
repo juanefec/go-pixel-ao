@@ -2,8 +2,6 @@ package models
 
 import (
 	"encoding/json"
-	"math"
-	"strings"
 
 	"github.com/segmentio/ksuid"
 )
@@ -81,20 +79,19 @@ type PlayerMsg struct {
 }
 
 func (p *PlayerMsg) UpdatePlayer() {
-	speed := PlayerBaseSpeed
-	if len(p.MovementDirection) == 2 {
-		speed = PlayerBaseSpeed / math.Sqrt(2)
-	}
-
-	if strings.Contains(p.MovementDirection, "U") {
-		p.Y += speed
-	} else if strings.Contains(p.MovementDirection, "D") {
-		p.Y -= speed
-	}
-	if strings.Contains(p.MovementDirection, "R") {
-		p.X += speed
-	} else if strings.Contains(p.MovementDirection, "L") {
-		p.X -= speed
+	switch p.MovementDirection {
+	case "U":
+		p.Y += PlayerBaseSpeed
+		break
+	case "D":
+		p.Y -= PlayerBaseSpeed
+		break
+	case "R":
+		p.X += PlayerBaseSpeed
+		break
+	case "L":
+		p.X -= PlayerBaseSpeed
+		break
 	}
 }
 

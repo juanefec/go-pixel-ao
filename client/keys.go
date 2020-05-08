@@ -36,14 +36,27 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, socket *sock
 		KeyRight = pixelgl.KeyD
 	)
 
-	directionKeyStatuses := map[pixelgl.Button]bool{
-		KeyUp:    false,
-		KeyDown:  false,
-		KeyLeft:  false,
-		KeyRight: false,
-	}
+	var pressedKeys []pixelgl.Button
 
 	tpTime := time.Now()
+
+	keyIsBeingPressed := func(keyToCheck pixelgl.Button) bool {
+		for _, key := range pressedKeys {
+			if key == keyToCheck {
+				return true
+			}
+		}
+		return false
+	}
+
+	releaseKey := func(key pixelgl.Button) {
+		for i, k := range pressedKeys {
+			if k == key {
+				pressedKeys = append(pressedKeys[:i], pressedKeys[i+1:]...)
+				return
+			}
+		}
+	}
 
 	updateMovement := func() {
 		moveMsg := &models.MoveMsg{
@@ -51,15 +64,21 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, socket *sock
 			Direction: "",
 		}
 
-		if directionKeyStatuses[KeyUp] {
-			moveMsg.Direction += "U"
-		} else if directionKeyStatuses[KeyDown] {
-			moveMsg.Direction += "D"
-		}
-		if directionKeyStatuses[KeyLeft] {
-			moveMsg.Direction += "L"
-		} else if directionKeyStatuses[KeyRight] {
-			moveMsg.Direction += "R"
+		if len(pressedKeys) != 0 {
+			switch pressedKeys[0] {
+			case KeyUp:
+				moveMsg.Direction = "U"
+				break
+			case KeyDown:
+				moveMsg.Direction = "D"
+				break
+			case KeyLeft:
+				moveMsg.Direction = "L"
+				break
+			case KeyRight:
+				moveMsg.Direction = "R"
+				break
+			}
 		}
 
 		movePayload, err := json.Marshal(moveMsg)
@@ -69,30 +88,28 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, socket *sock
 		socket.O <- models.NewMesg(models.Move, movePayload)
 	}
 
-	checkMovementKey := func(keyToCheck pixelgl.Button, inverseKey pixelgl.Button) {
-		if (win.JustPressed(keyToCheck) || win.Pressed(keyToCheck)) && !directionKeyStatuses[inverseKey] && !directionKeyStatuses[keyToCheck] {
-			directionKeyStatuses[keyToCheck] = true
+	checkMovementKey := func(keyToCheck pixelgl.Button) {
+		if win.JustPressed(keyToCheck) && !keyIsBeingPressed(keyToCheck) {
+			pressedKeys = append(pressedKeys, keyToCheck)
 			updateMovement()
 		}
 		if win.JustReleased(keyToCheck) {
-			directionKeyStatuses[keyToCheck] = false
+			releaseKey(keyToCheck)
 			updateMovement()
 		}
 	}
 
 	for !win.Closed() {
 		if player.chat.chatting {
-			for key := range directionKeyStatuses {
-				directionKeyStatuses[key] = false
-			}
+			pressedKeys = []pixelgl.Button{}
 			updateMovement()
 		}
 
 		if !player.chat.chatting && !player.rooted {
-			checkMovementKey(KeyLeft, KeyRight)
-			checkMovementKey(KeyRight, KeyLeft)
-			checkMovementKey(KeyUp, KeyDown)
-			checkMovementKey(KeyDown, KeyUp)
+			checkMovementKey(KeyLeft)
+			checkMovementKey(KeyRight)
+			checkMovementKey(KeyUp)
+			checkMovementKey(KeyDown)
 
 			if win.JustPressed(pixelgl.Button(Key.Explo)) {
 				cursor.SetSpellExploMode()
