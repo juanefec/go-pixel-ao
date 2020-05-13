@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/faiface/pixel"
+	"github.com/segmentio/ksuid"
 )
 
 type CollisionSystem struct {
@@ -19,6 +20,7 @@ type Bounds struct {
 	Offset pixel.Vec
 	Width  float64
 	Height float64
+	Uid    ksuid.KSUID
 }
 
 func (b *Bounds) GetHitBoxX() float64 {
@@ -175,6 +177,14 @@ func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 }
 
 func (cs *CollisionSystem) Insert(pRect *Bounds) {
+	if !pRect.Uid.IsNil() { //this if is stupid and should be removed in a future refactor
+		for _, b := range cs.GetAllBounds() {
+			if b.Uid == pRect.Uid {
+				return
+			}
+		}
+	}
+
 	cs.Total++
 
 	i := 0

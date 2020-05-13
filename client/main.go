@@ -238,7 +238,7 @@ func run() {
 	}
 	cursor := NewCursor(win)
 	go keyInputs(win, &player, cursor, &cs)
-	go GameUpdate(socket, &otherPlayers, &player, allSpells)
+	go GameUpdate(socket, &otherPlayers, &player, allSpells, &cs)
 	fps := 0
 	unatachedCam := false
 	offset := pixel.ZV
@@ -289,6 +289,7 @@ func run() {
 		if DebugMode {
 			imd := imdraw.New(nil)
 			imd.Color = pixel.RGB(1, 0, 0)
+			log.Println(len(cs.GetAllBounds()))
 			for _, b := range cs.GetAllBounds() {
 				imd.Push(
 					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
@@ -346,7 +347,7 @@ func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
 	s.O <- models.NewMesg(models.Death, dmm)
 }
 
-func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds) {
+func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds, cs *CollisionSystem) {
 	for {
 		select {
 		case data := <-s.I:
@@ -358,7 +359,6 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				json.Unmarshal(msg.Payload, &players)
 
 				for i := 0; i <= len(players)-1; i++ {
-
 					p := players[i]
 					if p.ID != s.ClientID {
 						pd.AnimationsMutex.Lock()
@@ -373,7 +373,17 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 							player, _ = pd.CurrentAnimations[p.ID]
 						}
 						pd.AnimationsMutex.Unlock()
-						player.bounds.Pos = pixel.V(p.X, p.Y)
+
+						//its pretty shitty to execute the two following statements every loop and should be removed in a future refactor
+						player.bounds = Bounds{
+							Pos:    pixel.V(p.X, p.Y),
+							Offset: pixel.V(-12.5, -22.5),
+							Height: 12.5,
+							Width:  25,
+							Uid:    p.ID,
+						}
+						cs.Insert(&player.bounds)
+
 						player.dir = p.Dir
 						player.moving = p.Moving
 						player.dead = p.Dead
