@@ -25,7 +25,7 @@ type Player struct {
 	hp, mp, maxhp, maxmp                                                      float64 // health/mana points
 	wizard                                                                    *Wizard
 	chat                                                                      Chat
-	pos                                                                       pixel.Vec
+	bounds                                                                    Bounds
 	name                                                                      *text.Text
 	sname                                                                     string
 	playerUpdate                                                              *models.PlayerMsg
@@ -47,8 +47,6 @@ type Player struct {
 	rooted                                                                    bool
 	kills, deaths                                                             int
 	playerMovementSpeed                                                       float64
-	colliding                                                                 bool
-	collitionDir                                                              string
 }
 
 func NewPlayer(name string, wizard *Wizard) Player {
@@ -145,7 +143,11 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.deadPic = &deadSheet
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
-	p.pos = pixel.V(2000, 2600)
+	p.bounds = Bounds{
+		pos:    pixel.V(2000, 2600),
+		Height: 25,
+		Width:  25,
+	}
 	p.maxmp = MaxMana
 	p.maxhp = MaxHealth
 	if name == "   creagod   " {
@@ -159,7 +161,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 }
 
 func (p *Player) DrawHealthMana(win *pixelgl.Window) {
-	infoPos := p.pos.Add(pixel.V(-16, -24))
+	infoPos := p.bounds.pos.Add(pixel.V(-16, -24))
 	info := imdraw.New(nil)
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape
@@ -245,53 +247,17 @@ func (p *Player) DrawIngameHud(win *pixelgl.Window, arrawSpells *SpellData) {
 }
 
 func (p *Player) OnMe(click pixel.Vec) bool {
-	r := click.X < p.pos.X+14 && click.X > p.pos.X-14 && click.Y < p.pos.Y+30 && click.Y > p.pos.Y-20
+	r := click.X < p.bounds.pos.X+14 && click.X > p.bounds.pos.X-14 && click.Y < p.bounds.pos.Y+30 && click.Y > p.bounds.pos.Y-20
 	return r
 }
 
-func (p *Player) CollidingCheck(pp pixel.Vec) {
-	// tloffset := pixel.V(-14, 30)
-	// tlp := p.pos.Add(tloffset) // rects ar 28x50
-	// tlpp := pp.Add(tloffset)
-	//r := (tlp.X+28) >= tlpp.X && tlp.X <= (tlpp.X+28) && (tlp.Y-50) >= tlpp.Y && tlp.Y <= (tlpp.Y-50)
-	if p.moving {
-		r := pp.X-12 < p.pos.X+12 && pp.X+12 > p.pos.X-12 && pp.Y-12 < p.pos.Y+12 && pp.Y+12 > p.pos.Y-12
-		if r {
-			switch true {
-			case (pp.X+12 > p.pos.X-12) && p.dir == "left":
-				maxDepth := (pp.X + 12) - (p.pos.X - 12)
-				p.pos.X += maxDepth
-				p.collitionDir = p.dir
-
-			case (pp.X-12 < p.pos.X+12 && p.dir == "right"):
-				maxDepth := (p.pos.X + 12) - (pp.X - 12)
-				p.pos.X -= maxDepth
-				p.collitionDir = p.dir
-
-			case (pp.Y+12 > p.pos.Y-12) && p.dir == "down":
-				maxDepth := (pp.Y + 12) - (p.pos.Y - 12)
-				p.pos.Y += maxDepth
-				p.collitionDir = p.dir
-
-			case (pp.Y-12 < p.pos.Y+12) && p.dir == "up":
-				maxDepth := (p.pos.Y + 12) - (pp.Y - 12)
-				p.pos.Y -= maxDepth
-				p.collitionDir = p.dir
-
-			}
-		} else {
-			p.collitionDir = ""
-		}
-	}
-}
-
 func (p *Player) OnTrap(click pixel.Vec) bool {
-	r := click.X < p.pos.X+12 && click.X > p.pos.X-12 && click.Y < p.pos.Y+5 && click.Y > p.pos.Y-20
+	r := click.X < p.bounds.pos.X+12 && click.X > p.bounds.pos.X-12 && click.Y < p.bounds.pos.Y+5 && click.Y > p.bounds.pos.Y-20
 	return r
 }
 
 func (p *Player) InsideRaduis(center pixel.Vec, r float64) bool {
-	return math.Abs(Dist(center, p.pos)) <= r
+	return math.Abs(Dist(center, p.bounds.pos)) <= r
 }
 
 func (p *Player) clientUpdate(s *socket.Socket) {
@@ -300,8 +266,8 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 		Name:      p.sname,
 		Skin:      int(p.bodySkin),
 		HP:        p.hp,
-		X:         p.pos.X,
-		Y:         p.pos.Y,
+		X:         p.bounds.pos.X,
+		Y:         p.bounds.pos.Y,
 		Dir:       p.dir,
 		Moving:    p.moving,
 		Dead:      p.dead,
@@ -318,9 +284,6 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 
 func (p *Player) Update(pl *Player) {
 	if !p.dead {
-		if pl != nil {
-			pl.CollidingCheck(p.pos)
-		}
 		switch p.dir {
 		case "up":
 			p.headFrame = p.headFrames[3]
@@ -348,10 +311,10 @@ func (p *Player) Update(pl *Player) {
 			p.bodyFrame = p.getNextBodyFrame(BodyDown, p.bodyFrames)
 			p.bacuFrame = p.getNextBodyFrame(BodyDown, p.bacuFrames)
 		}
-		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 22)))
-		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.hatMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 21)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
+		p.headMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 22)))
+		p.bodyMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(0, 0)))
+		p.hatMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 21)))
+		p.nameMatrix = pixel.IM.Moved(p.bounds.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
 		p.bacu = pixel.NewSprite(*p.bacuPic, p.bacuFrame)
@@ -394,9 +357,9 @@ func (p *Player) Update(pl *Player) {
 			p.headFrame = p.headFrames[0]
 			p.bodyFrame = p.getNextDeadFrame(DeadDown)
 		}
-		p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 20)))
-		p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
+		p.headMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 20)))
+		p.bodyMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(0, 0)))
+		p.nameMatrix = pixel.IM.Moved(p.bounds.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 		p.rooted = false
@@ -404,10 +367,6 @@ func (p *Player) Update(pl *Player) {
 	if time.Since(p.lastRootedStart).Seconds() > 0 {
 		p.rooted = false
 	}
-}
-
-func (p *Player) CheckColitions(pp *Player) {
-
 }
 
 func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
@@ -421,7 +380,7 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 	if p.chat.chatting {
 		p.chat.Write(win)
 	}
-	p.chat.Draw(win, p.pos)
+	p.chat.Draw(win, p.bounds.pos)
 	p.name.Draw(win, p.nameMatrix)
 	if !p.invisible {
 		p.body.Draw(win, p.bodyMatrix)

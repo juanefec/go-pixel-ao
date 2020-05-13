@@ -6,6 +6,7 @@ import (
 )
 
 type Resu struct {
+	Bounds                 Bounds
 	PosBody, PosHead       pixel.Vec
 	BodyPic, HeadPic       pixel.Picture
 	BodyFrame, HeadFrame   pixel.Rect
@@ -13,8 +14,12 @@ type Resu struct {
 }
 
 func NewResu(pos pixel.Vec) *Resu {
-
 	r := Resu{}
+	r.Bounds = Bounds{
+		pos:    pos,
+		Height: 25,
+		Width:  25,
+	}
 	r.PosBody = pos
 	r.PosHead = pos.Add(pixel.V(1, 24))
 	r.BodyPic, r.HeadPic = Pictures["./images/curaBody.png"], Pictures["./images/curaHead.png"]
