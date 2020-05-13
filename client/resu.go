@@ -16,7 +16,7 @@ type Resu struct {
 func NewResu(pos pixel.Vec) *Resu {
 	r := Resu{}
 	r.Bounds = Bounds{
-		pos:    pos,
+		Pos:    pos,
 		Height: 25,
 		Width:  25,
 	}

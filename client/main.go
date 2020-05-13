@@ -208,7 +208,7 @@ func run() {
 
 	cs := CollisionSystem{
 		Bounds: Bounds{
-			pos:    pixel.V(0, 0),
+			Pos:    pixel.V(0, 0),
 			Width:  4000,
 			Height: 5200,
 		},
@@ -245,7 +245,7 @@ func run() {
 	newCenter := pixel.ZV
 	for !win.Closed() {
 		win.Clear(colornames.Forestgreen)
-		cam := pixel.IM.Scaled(player.bounds.pos, Zoom).Moved(win.Bounds().Center().Sub(player.bounds.pos))
+		cam := pixel.IM.Scaled(player.bounds.Pos, Zoom).Moved(win.Bounds().Center().Sub(player.bounds.Pos))
 
 		player.cam = cam
 
@@ -255,11 +255,11 @@ func run() {
 
 				if !unatachedCam {
 					unatachedCam = true
-					offset = cam.Unproject(win.MousePosition()).Sub(player.bounds.pos)
+					offset = cam.Unproject(win.MousePosition()).Sub(player.bounds.Pos)
 					newCenter = cam.Unproject(win.MousePosition()).Sub(newCenter).Sub(offset)
 
 				}
-				newCenter = cam.Unproject(win.MousePosition()).Sub(player.bounds.pos).Sub(offset)
+				newCenter = cam.Unproject(win.MousePosition()).Sub(player.bounds.Pos).Sub(offset)
 			} else {
 				unatachedCam = false
 			}
@@ -284,18 +284,18 @@ func run() {
 		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
 		chatlog.Draw(win, cam)
-		cursor.Draw(cam, player.bounds.pos)
+		cursor.Draw(cam, player.bounds.Pos)
 
 		if DebugMode {
 			imd := imdraw.New(nil)
 			imd.Color = pixel.RGB(1, 0, 0)
 			for _, b := range cs.GetAllBounds() {
 				imd.Push(
-					pixel.V(b.pos.X, b.pos.Y),
-					pixel.V(b.pos.X+b.Width, b.pos.Y),
-					pixel.V(b.pos.X+b.Width, b.pos.Y+b.Height),
-					pixel.V(b.pos.X, b.pos.Y+b.Height),
-					pixel.V(b.pos.X, b.pos.Y),
+					pixel.V(b.Pos.X, b.Pos.Y),
+					pixel.V(b.Pos.X+b.Width, b.Pos.Y),
+					pixel.V(b.Pos.X+b.Width, b.Pos.Y+b.Height),
+					pixel.V(b.Pos.X, b.Pos.Y+b.Height),
+					pixel.V(b.Pos.X, b.Pos.Y),
 				)
 				imd.Rectangle(1)
 			}
@@ -373,7 +373,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 							player, _ = pd.CurrentAnimations[p.ID]
 						}
 						pd.AnimationsMutex.Unlock()
-						player.bounds.pos = pixel.V(p.X, p.Y)
+						player.bounds.Pos = pixel.V(p.X, p.Y)
 						player.dir = p.Dir
 						player.moving = p.Moving
 						player.dead = p.Dead
@@ -435,21 +435,21 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.Projectile[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.pos)
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.Pos)
 							centerMatrix := pixel.IM
 							switch spell.SpellName {
 							case "fireball":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.pos, 2)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, 2)
 							case "icesnipe":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.pos, vel.Angle()).Scaled(caster.bounds.pos, .6)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()).Scaled(caster.bounds.Pos, .6)
 							case "healshot", "manashot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.pos, .6)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, .6)
 							case "rockshot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.pos, vel.Angle())
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle())
 							}
 							newSpell.caster = spell.ID
 							newSpell.vel = vel
-							newSpell.pos = caster.bounds.pos
+							newSpell.pos = caster.bounds.Pos
 							newSpell.matrix = &centerMatrix
 							newSpell.step = sd.Frames[0]
 							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
@@ -476,10 +476,10 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.ChargedProjectile[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.pos)
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.Pos)
 							centerMatrix := pixel.IM
 							if spell.SpellName == "arrowshot" {
-								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.pos, 3)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, 3)
 							} else {
 								break
 							}
@@ -487,7 +487,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 							newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
 							newSpell.caster = spell.ID
 							newSpell.vel = vel
-							newSpell.pos = caster.bounds.pos
+							newSpell.pos = caster.bounds.Pos
 							newSpell.matrix = &centerMatrix
 							newSpell.step = sd.Frames[0]
 							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
@@ -514,7 +514,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.Movement[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							newSpell.pos = caster.bounds.pos
+							newSpell.pos = caster.bounds.Pos
 							centerMatrix := pixel.IM.Moved(newSpell.pos)
 							newSpell.caster = spell.ID
 							newSpell.matrix = &centerMatrix

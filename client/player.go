@@ -144,7 +144,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.deadHeadPic = &deadHeadSheet
 	p.dir = "down"
 	p.bounds = Bounds{
-		pos:    pixel.V(2000, 2600),
+		Pos:    pixel.V(2000, 2600),
 		Height: 25,
 		Width:  25,
 	}
@@ -161,7 +161,7 @@ func NewPlayer(name string, wizard *Wizard) Player {
 }
 
 func (p *Player) DrawHealthMana(win *pixelgl.Window) {
-	infoPos := p.bounds.pos.Add(pixel.V(-16, -24))
+	infoPos := p.bounds.Pos.Add(pixel.V(-16, -24))
 	info := imdraw.New(nil)
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape
@@ -247,17 +247,17 @@ func (p *Player) DrawIngameHud(win *pixelgl.Window, arrawSpells *SpellData) {
 }
 
 func (p *Player) OnMe(click pixel.Vec) bool {
-	r := click.X < p.bounds.pos.X+14 && click.X > p.bounds.pos.X-14 && click.Y < p.bounds.pos.Y+30 && click.Y > p.bounds.pos.Y-20
+	r := click.X < p.bounds.Pos.X+14 && click.X > p.bounds.Pos.X-14 && click.Y < p.bounds.Pos.Y+30 && click.Y > p.bounds.Pos.Y-20
 	return r
 }
 
 func (p *Player) OnTrap(click pixel.Vec) bool {
-	r := click.X < p.bounds.pos.X+12 && click.X > p.bounds.pos.X-12 && click.Y < p.bounds.pos.Y+5 && click.Y > p.bounds.pos.Y-20
+	r := click.X < p.bounds.Pos.X+12 && click.X > p.bounds.Pos.X-12 && click.Y < p.bounds.Pos.Y+5 && click.Y > p.bounds.Pos.Y-20
 	return r
 }
 
 func (p *Player) InsideRaduis(center pixel.Vec, r float64) bool {
-	return math.Abs(Dist(center, p.bounds.pos)) <= r
+	return math.Abs(Dist(center, p.bounds.Pos)) <= r
 }
 
 func (p *Player) clientUpdate(s *socket.Socket) {
@@ -266,8 +266,8 @@ func (p *Player) clientUpdate(s *socket.Socket) {
 		Name:      p.sname,
 		Skin:      int(p.bodySkin),
 		HP:        p.hp,
-		X:         p.bounds.pos.X,
-		Y:         p.bounds.pos.Y,
+		X:         p.bounds.Pos.X,
+		Y:         p.bounds.Pos.Y,
 		Dir:       p.dir,
 		Moving:    p.moving,
 		Dead:      p.dead,
@@ -311,10 +311,10 @@ func (p *Player) Update(pl *Player) {
 			p.bodyFrame = p.getNextBodyFrame(BodyDown, p.bodyFrames)
 			p.bacuFrame = p.getNextBodyFrame(BodyDown, p.bacuFrames)
 		}
-		p.headMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 22)))
-		p.bodyMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(0, 0)))
-		p.hatMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 21)))
-		p.nameMatrix = pixel.IM.Moved(p.bounds.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
+		p.headMatrix = pixel.IM.Moved(p.bounds.Pos.Add(pixel.V(1, 22)))
+		p.bodyMatrix = pixel.IM.Moved(p.bounds.Pos.Add(pixel.V(0, 0)))
+		p.hatMatrix = pixel.IM.Moved(p.bounds.Pos.Add(pixel.V(1, 21)))
+		p.nameMatrix = pixel.IM.Moved(p.bounds.Pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.headPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
 		p.bacu = pixel.NewSprite(*p.bacuPic, p.bacuFrame)
@@ -357,9 +357,9 @@ func (p *Player) Update(pl *Player) {
 			p.headFrame = p.headFrames[0]
 			p.bodyFrame = p.getNextDeadFrame(DeadDown)
 		}
-		p.headMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(1, 20)))
-		p.bodyMatrix = pixel.IM.Moved(p.bounds.pos.Add(pixel.V(0, 0)))
-		p.nameMatrix = pixel.IM.Moved(p.bounds.pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
+		p.headMatrix = pixel.IM.Moved(p.bounds.Pos.Add(pixel.V(1, 20)))
+		p.bodyMatrix = pixel.IM.Moved(p.bounds.Pos.Add(pixel.V(0, 0)))
+		p.nameMatrix = pixel.IM.Moved(p.bounds.Pos.Sub(p.name.Bounds().Center().Floor()).Add(pixel.V(0, -37)))
 		p.head = pixel.NewSprite(*p.deadHeadPic, p.headFrame)
 		p.body = pixel.NewSprite(*p.deadPic, p.bodyFrame)
 		p.rooted = false
@@ -380,7 +380,7 @@ func (p *Player) Draw(win *pixelgl.Window, s *socket.Socket) {
 	if p.chat.chatting {
 		p.chat.Write(win)
 	}
-	p.chat.Draw(win, p.bounds.pos)
+	p.chat.Draw(win, p.bounds.Pos)
 	p.name.Draw(win, p.nameMatrix)
 	if !p.invisible {
 		p.body.Draw(win, p.bodyMatrix)

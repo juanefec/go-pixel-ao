@@ -163,7 +163,7 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 		if sd.SpellName == "arrow-explo" {
 			scale = Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, .5, 1.5)
 		}
-		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.bounds.pos, scale))
+		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.bounds.Pos, scale))
 	}
 
 }
@@ -207,7 +207,7 @@ func (sd *SpellData) UpdateProjectiles(win *pixelgl.Window, cam pixel.Matrix, s 
 				sd.Caster.mp -= sd.ManaCost
 				newSpell := &Spell{
 					caster:         s.ClientID,
-					pos:            sd.Caster.bounds.pos,
+					pos:            sd.Caster.bounds.Pos,
 					vel:            vel,
 					spellName:      &sd.SpellName,
 					step:           sd.Frames[0],
@@ -294,9 +294,9 @@ FBALLS:
 				}
 				if "blood-explo" == effects[i].SpellName && sd.SpellName == "icesnipe" {
 					if pd.CurrentAnimations[casterID].sname == "   creagod   " {
-						sd.Caster.hp -= Map(Dist(sd.Caster.bounds.pos, pd.CurrentAnimations[casterID].bounds.pos), 0, 600, 15, float64(sd.Damage)*3)
+						sd.Caster.hp -= Map(Dist(sd.Caster.bounds.Pos, pd.CurrentAnimations[casterID].bounds.Pos), 0, 600, 15, float64(sd.Damage)*3)
 					} else {
-						sd.Caster.hp -= Map(Dist(sd.Caster.bounds.pos, pd.CurrentAnimations[casterID].bounds.pos), 0, 500, 15, float64(sd.Damage))
+						sd.Caster.hp -= Map(Dist(sd.Caster.bounds.Pos, pd.CurrentAnimations[casterID].bounds.Pos), 0, 500, 15, float64(sd.Damage))
 					}
 
 					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
@@ -304,7 +304,7 @@ FBALLS:
 
 			}
 			if sd.SpellName == "rockshot" {
-				rootTime := Map(Dist(sd.Caster.bounds.pos, pd.CurrentAnimations[casterID].bounds.pos), 0, 300, time.Second.Seconds()*1.6, time.Second.Seconds()*.5)
+				rootTime := Map(Dist(sd.Caster.bounds.Pos, pd.CurrentAnimations[casterID].bounds.Pos), 0, 300, time.Second.Seconds()*1.6, time.Second.Seconds()*.5)
 				sd.Caster.lastRootedStart = time.Now().Add(time.Duration(int64(time.Second) * int64(rootTime)))
 				sd.Caster.rooted = true
 				sd.Caster.hp -= sd.Damage
@@ -404,7 +404,7 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 
 				newSpell := &Spell{
 					caster:         s.ClientID,
-					pos:            sd.Caster.bounds.pos,
+					pos:            sd.Caster.bounds.Pos,
 					vel:            vel,
 					spellName:      &sd.SpellName,
 					step:           sd.Frames[0],
@@ -778,9 +778,9 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 			paylaod, _ := json.Marshal(spell)
 			s.O <- models.NewMesg(models.Spell, paylaod)
 
-			spellMatrix := pixel.IM.Moved(sd.Caster.bounds.pos)
+			spellMatrix := pixel.IM.Moved(sd.Caster.bounds.Pos)
 			newSpell := &Spell{
-				pos:         sd.Caster.bounds.pos,
+				pos:         sd.Caster.bounds.Pos,
 				spellName:   &sd.SpellName,
 				step:        sd.Frames[0],
 				frameNumber: 0.0,
@@ -791,7 +791,7 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 
 			newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
 			sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-			sd.Caster.bounds.pos = mouse
+			sd.Caster.bounds.Pos = mouse
 
 		}
 	}
@@ -819,10 +819,10 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 					paylaod, _ := json.Marshal(spell)
 					s.O <- models.NewMesg(models.Spell, paylaod)
 
-					spellMatrix := pixel.IM.Moved(sd.Caster.bounds.pos)
+					spellMatrix := pixel.IM.Moved(sd.Caster.bounds.Pos)
 					sd.Caster.mp -= sd.ManaCost
 					newSpell := &Spell{
-						pos:         sd.Caster.bounds.pos,
+						pos:         sd.Caster.bounds.Pos,
 						spellName:   &sd.SpellName,
 						step:        sd.Frames[0],
 						frameNumber: 0.0,
@@ -835,10 +835,10 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 					sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 					dist := Dist(mouse, cam.Unproject(win.Bounds().Center()))
 					if dist <= FlashSpellRange {
-						sd.Caster.bounds.pos = mouse
+						sd.Caster.bounds.Pos = mouse
 					} else {
 						nm := VectorNormalize(mouse.Sub(cam.Unproject(win.Bounds().Center())))
-						sd.Caster.bounds.pos = nm.Scaled(FlashSpellRange).Add(cam.Unproject(win.Bounds().Center()))
+						sd.Caster.bounds.Pos = nm.Scaled(FlashSpellRange).Add(cam.Unproject(win.Bounds().Center()))
 					}
 
 				}

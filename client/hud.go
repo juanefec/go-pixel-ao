@@ -267,7 +267,7 @@ func NewPlayerInfo(player *Player, pd *PlayersData, spells SpellKinds) *PlayerIn
 	hudProps[ManaNumber] = NewTextProp(basicAtlas, "%v/%v", player.mp, player.maxmp)
 	hudProps[OnlineCount] = NewTextProp(basicAtlas, "Typing...")
 	hudProps[PosXY] = NewTextProp(basicAtlas, "Online: %v", pd.Online+1)
-	hudProps[TypingMark] = NewTextProp(basicAtlas, "X: %v\nY: %v", player.bounds.pos.X, player.bounds.pos.Y)
+	hudProps[TypingMark] = NewTextProp(basicAtlas, "X: %v\nY: %v", player.bounds.Pos.X, player.bounds.Pos.Y)
 	hudProps[FPSCount] = NewTextProp(basicAtlas, "FPS: %v", 0)
 	hudProps[ZoomINButton] = NewTextProp(basicAtlas, "in")
 	hudProps[ZoomOUTButton] = NewTextProp(basicAtlas, "out")
@@ -483,7 +483,7 @@ func (pi *PlayerInfo) Draw(win *pixelgl.Window, cam pixel.Matrix, cursor *Cursor
 	topLeftInfoPos := cam.Unproject(pixel.V(30, winSize.Y-50))
 	pi.hudText[OnlineCount].Draw(win, pixel.IM.Moved(topLeftInfoPos).Scaled(topLeftInfoPos, 2), "Online: %v", pi.playersData.Online+1)
 	pi.hudText[FPSCount].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -20))), "FPS: %v", pi.nfps)
-	pi.hudText[PosXY].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -40))), "X: %v\nY: %v", int(pi.player.bounds.pos.X/10), int(pi.player.bounds.pos.Y/10))
+	pi.hudText[PosXY].Draw(win, pixel.IM.Moved(topLeftInfoPos.Add(pixel.V(0, -40))), "X: %v\nY: %v", int(pi.player.bounds.Pos.X/10), int(pi.player.bounds.Pos.Y/10))
 
 	if Zoom == 2 {
 		pi.hudText[ZoomINButton].Draw(win, pixel.IM.Moved(zoomTogglePos.Add(pixel.V(3, 5))), "x2")

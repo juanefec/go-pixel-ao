@@ -67,7 +67,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 				if latestPressed(KeyLeft, timeMap) {
 					player.moving = true
 					player.dir = "left"
-					if player.bounds.pos.X > Left {
+					if player.bounds.Pos.X > Left {
 						axisX = true
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyLeft] = 0
@@ -84,7 +84,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 				if latestPressed(KeyRight, timeMap) {
 					player.moving = true
 					player.dir = "right"
-					if player.bounds.pos.X < Right {
+					if player.bounds.Pos.X < Right {
 						axisX = true
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyRight] = 0
@@ -101,7 +101,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 				if latestPressed(KeyDown, timeMap) {
 					player.moving = true
 					player.dir = "down"
-					if player.bounds.pos.Y > Bottom {
+					if player.bounds.Pos.Y > Bottom {
 						axisX = false
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyDown] = 0
@@ -119,7 +119,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 				if latestPressed(KeyUp, timeMap) {
 					player.moving = true
 					player.dir = "up"
-					if player.bounds.pos.Y < Top {
+					if player.bounds.Pos.Y < Top {
 						axisX = false
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyUp] = 0
@@ -134,14 +134,14 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 
 			if player.moving {
 				if axisX {
-					player.bounds.pos.X += dist
+					player.bounds.Pos.X += dist
 					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
-						player.bounds.pos.X -= dist
+						player.bounds.Pos.X -= dist
 					}
 				} else {
-					player.bounds.pos.Y += dist
+					player.bounds.Pos.Y += dist
 					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
-						player.bounds.pos.Y -= dist
+						player.bounds.Pos.Y -= dist
 					}
 				}
 			}
