@@ -135,12 +135,12 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 			if player.moving {
 				if axisX {
 					player.bounds.pos.X += dist
-					if len(cs.RetrieveIntersections(player.bounds)) != 0 {
+					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
 						player.bounds.pos.X -= dist
 					}
 				} else {
 					player.bounds.pos.Y += dist
-					if len(cs.RetrieveIntersections(player.bounds)) != 0 {
+					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
 						player.bounds.pos.Y -= dist
 					}
 				}

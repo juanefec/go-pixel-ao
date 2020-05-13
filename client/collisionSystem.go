@@ -10,7 +10,7 @@ type CollisionSystem struct {
 	MaxObjects int
 	MaxLevels  int
 	Level      int
-	Objects    []Bounds
+	Objects    []*Bounds
 	Nodes      []CollisionSystem
 	Total      int
 }
@@ -30,7 +30,7 @@ func (b *Bounds) IsPoint() bool {
 	return false
 }
 
-func (b *Bounds) Intersects(a Bounds) bool {
+func (b *Bounds) Intersects(a *Bounds) bool {
 	aMaxX := a.pos.X + a.Width
 	aMaxY := a.pos.Y + a.Height
 	bMaxX := b.pos.X + b.Width
@@ -92,7 +92,7 @@ func (cs *CollisionSystem) split() {
 		MaxObjects: cs.MaxObjects,
 		MaxLevels:  cs.MaxLevels,
 		Level:      nextLevel,
-		Objects:    make([]Bounds, 0),
+		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0, 4),
 	})
 
@@ -105,7 +105,7 @@ func (cs *CollisionSystem) split() {
 		MaxObjects: cs.MaxObjects,
 		MaxLevels:  cs.MaxLevels,
 		Level:      nextLevel,
-		Objects:    make([]Bounds, 0),
+		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0, 4),
 	})
 
@@ -118,7 +118,7 @@ func (cs *CollisionSystem) split() {
 		MaxObjects: cs.MaxObjects,
 		MaxLevels:  cs.MaxLevels,
 		Level:      nextLevel,
-		Objects:    make([]Bounds, 0),
+		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0, 4),
 	})
 
@@ -131,12 +131,12 @@ func (cs *CollisionSystem) split() {
 		MaxObjects: cs.MaxObjects,
 		MaxLevels:  cs.MaxLevels,
 		Level:      nextLevel,
-		Objects:    make([]Bounds, 0),
+		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0, 4),
 	})
 }
 
-func (cs *CollisionSystem) getIndex(pRect Bounds) int {
+func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 	index := -1
 
 	verticalMidpoint := cs.Bounds.pos.X + (cs.Bounds.Width / 2)
@@ -167,7 +167,7 @@ func (cs *CollisionSystem) getIndex(pRect Bounds) int {
 	return index
 }
 
-func (cs *CollisionSystem) Insert(pRect Bounds) {
+func (cs *CollisionSystem) Insert(pRect *Bounds) {
 	cs.Total++
 
 	i := 0
@@ -213,7 +213,7 @@ func (cs *CollisionSystem) Insert(pRect Bounds) {
 	}
 }
 
-func (cs *CollisionSystem) Retrieve(pRect Bounds) []Bounds {
+func (cs *CollisionSystem) Retrieve(pRect *Bounds) []*Bounds {
 	index := cs.getIndex(pRect)
 
 	returnObjects := cs.Objects
@@ -236,8 +236,8 @@ func (cs *CollisionSystem) Retrieve(pRect Bounds) []Bounds {
 	return returnObjects
 }
 
-func (cs *CollisionSystem) RetrievePoints(find Bounds) []Bounds {
-	var foundPoints []Bounds
+func (cs *CollisionSystem) RetrievePoints(find *Bounds) []*Bounds {
+	var foundPoints []*Bounds
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
 
@@ -250,8 +250,8 @@ func (cs *CollisionSystem) RetrievePoints(find Bounds) []Bounds {
 	return foundPoints
 }
 
-func (cs *CollisionSystem) RetrieveIntersections(find Bounds) []Bounds {
-	var foundIntersections []Bounds
+func (cs *CollisionSystem) RetrieveIntersections(find *Bounds) []*Bounds {
+	var foundIntersections []*Bounds
 
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
@@ -264,7 +264,7 @@ func (cs *CollisionSystem) RetrieveIntersections(find Bounds) []Bounds {
 }
 
 func (cs *CollisionSystem) Clear() {
-	cs.Objects = []Bounds{}
+	cs.Objects = []*Bounds{}
 
 	if len(cs.Nodes)-1 > 0 {
 		for i := 0; i < len(cs.Nodes); i++ {
@@ -276,7 +276,7 @@ func (cs *CollisionSystem) Clear() {
 	cs.Total = 0
 }
 
-func (cs *CollisionSystem) GetAllBounds() []Bounds {
+func (cs *CollisionSystem) GetAllBounds() []*Bounds {
 	if len(cs.Nodes) == 0 {
 		return cs.Objects
 	} else {

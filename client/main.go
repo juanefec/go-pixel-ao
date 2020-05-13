@@ -215,11 +215,11 @@ func run() {
 		MaxObjects: 10,
 		MaxLevels:  5,
 		Level:      0,
-		Objects:    make([]Bounds, 0),
+		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0),
 	}
-	cs.Insert(player.bounds)
-	cs.Insert(resu.Bounds)
+	cs.Insert(&player.bounds)
+	cs.Insert(&resu.Bounds)
 
 	socket := socket.NewSocket("localhost", 33333)
 	defer socket.Close()
