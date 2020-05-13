@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 
 	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
@@ -285,9 +286,21 @@ func run() {
 		chatlog.Draw(win, cam)
 		cursor.Draw(cam, player.bounds.pos)
 
-		// if DebugMode {
-		// 	cs.
-		// }
+		if DebugMode {
+			imd := imdraw.New(nil)
+			imd.Color = pixel.RGB(1, 0, 0)
+			for _, b := range cs.GetAllBounds() {
+				imd.Push(
+					pixel.V(b.pos.X, b.pos.Y),
+					pixel.V(b.pos.X+b.Width, b.pos.Y),
+					pixel.V(b.pos.X+b.Width, b.pos.Y+b.Height),
+					pixel.V(b.pos.X, b.pos.Y+b.Height),
+					pixel.V(b.pos.X, b.pos.Y),
+				)
+				imd.Rectangle(1)
+			}
+			imd.Draw(win)
+		}
 
 		fps++
 		if !player.chat.chatting && win.JustPressed(pixelgl.KeyZ) {

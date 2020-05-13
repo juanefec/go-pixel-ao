@@ -23,17 +23,14 @@ type Bounds struct {
 }
 
 func (b *Bounds) IsPoint() bool {
-
 	if b.Width == 0 && b.Height == 0 {
 		return true
 	}
 
 	return false
-
 }
 
 func (b *Bounds) Intersects(a Bounds) bool {
-
 	aMaxX := a.pos.X + a.Width
 	aMaxY := a.pos.Y + a.Height
 	bMaxX := b.pos.X + b.Width
@@ -60,11 +57,9 @@ func (b *Bounds) Intersects(a Bounds) bool {
 	}
 
 	return true
-
 }
 
 func (cs *CollisionSystem) TotalNodes() int {
-
 	total := 0
 
 	if len(cs.Nodes) > 0 {
@@ -75,11 +70,9 @@ func (cs *CollisionSystem) TotalNodes() int {
 	}
 
 	return total
-
 }
 
 func (cs *CollisionSystem) split() {
-
 	if len(cs.Nodes) == 4 {
 		return
 	}
@@ -141,11 +134,9 @@ func (cs *CollisionSystem) split() {
 		Objects:    make([]Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0, 4),
 	})
-
 }
 
 func (cs *CollisionSystem) getIndex(pRect Bounds) int {
-
 	index := -1
 
 	verticalMidpoint := cs.Bounds.pos.X + (cs.Bounds.Width / 2)
@@ -174,11 +165,9 @@ func (cs *CollisionSystem) getIndex(pRect Bounds) int {
 	}
 
 	return index
-
 }
 
 func (cs *CollisionSystem) Insert(pRect Bounds) {
-
 	cs.Total++
 
 	i := 0
@@ -222,11 +211,9 @@ func (cs *CollisionSystem) Insert(pRect Bounds) {
 		}
 
 	}
-
 }
 
 func (cs *CollisionSystem) Retrieve(pRect Bounds) []Bounds {
-
 	index := cs.getIndex(pRect)
 
 	returnObjects := cs.Objects
@@ -247,11 +234,9 @@ func (cs *CollisionSystem) Retrieve(pRect Bounds) []Bounds {
 	}
 
 	return returnObjects
-
 }
 
 func (cs *CollisionSystem) RetrievePoints(find Bounds) []Bounds {
-
 	var foundPoints []Bounds
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
@@ -263,11 +248,9 @@ func (cs *CollisionSystem) RetrievePoints(find Bounds) []Bounds {
 	}
 
 	return foundPoints
-
 }
 
 func (cs *CollisionSystem) RetrieveIntersections(find Bounds) []Bounds {
-
 	var foundIntersections []Bounds
 
 	potentials := cs.Retrieve(find)
@@ -278,11 +261,9 @@ func (cs *CollisionSystem) RetrieveIntersections(find Bounds) []Bounds {
 	}
 
 	return foundIntersections
-
 }
 
 func (cs *CollisionSystem) Clear() {
-
 	cs.Objects = []Bounds{}
 
 	if len(cs.Nodes)-1 > 0 {
@@ -293,5 +274,12 @@ func (cs *CollisionSystem) Clear() {
 
 	cs.Nodes = []CollisionSystem{}
 	cs.Total = 0
+}
 
+func (cs *CollisionSystem) GetAllBounds() []Bounds {
+	if len(cs.Nodes) == 0 {
+		return cs.Objects
+	} else {
+		return append(cs.Nodes[0].GetAllBounds(), append(cs.Nodes[1].GetAllBounds(), append(cs.Nodes[2].GetAllBounds(), cs.Nodes[3].GetAllBounds()...)...)...)
+	}
 }
