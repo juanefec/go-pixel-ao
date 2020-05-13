@@ -558,6 +558,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 					pd.AnimationsMutex.Lock()
 					delete(pd.CurrentAnimations, m.ID)
 					pd.AnimationsMutex.Unlock()
+					cs.Remove(m.ID)
 				}
 			}
 

@@ -230,6 +230,24 @@ func (cs *CollisionSystem) Insert(pRect *Bounds) {
 	}
 }
 
+//this method could be improved by remerging subnodes into their parent node when they have less than maximum objects
+func (cs *CollisionSystem) Remove(uid ksuid.KSUID) {
+	if len(cs.Objects) != 0 {
+		for i, b := range cs.Objects {
+			if b.Uid == uid {
+				cs.Total--
+				cs.Objects[i] = cs.Objects[len(cs.Objects)-1]
+				cs.Objects = cs.Objects[:len(cs.Objects)-1]
+				return
+			}
+		}
+	}
+
+	for i := 0; i < len(cs.Nodes); i++ {
+		cs.Nodes[i].Remove(uid)
+	}
+}
+
 func (cs *CollisionSystem) Retrieve(pRect *Bounds) []*Bounds {
 	index := cs.getIndex(pRect)
 
@@ -257,7 +275,6 @@ func (cs *CollisionSystem) RetrievePoints(find *Bounds) []*Bounds {
 	var foundPoints []*Bounds
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
-
 		xyMatch := potentials[o].Pos.X == float64(find.GetHitBoxX()) && potentials[o].Pos.Y == float64(find.GetHitBoxY())
 		if xyMatch && potentials[o].IsPoint() {
 			foundPoints = append(foundPoints, find)
