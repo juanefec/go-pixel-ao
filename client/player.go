@@ -12,7 +12,6 @@ import (
 	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/juanefec/go-pixel-ao/models"
-	"github.com/segmentio/ksuid"
 	"golang.org/x/image/colornames"
 )
 
@@ -148,7 +147,6 @@ func NewPlayer(name string, wizard *Wizard) Player {
 		pos:    pixel.V(2000, 2600),
 		Height: 25,
 		Width:  25,
-		Id:     ksuid.New(),
 	}
 	p.maxmp = MaxMana
 	p.maxhp = MaxHealth

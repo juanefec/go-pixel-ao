@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/faiface/pixel"
-	"github.com/segmentio/ksuid"
 )
 
 type CollisionSystem struct {
@@ -16,10 +15,9 @@ type CollisionSystem struct {
 }
 
 type Bounds struct {
-	pos    pixel.Vec
+	Pos    pixel.Vec
 	Width  float64
 	Height float64
-	Id     ksuid.KSUID
 }
 
 func (b *Bounds) IsPoint() bool {
@@ -31,28 +29,28 @@ func (b *Bounds) IsPoint() bool {
 }
 
 func (b *Bounds) Intersects(a *Bounds) bool {
-	aMaxX := a.pos.X + a.Width
-	aMaxY := a.pos.Y + a.Height
-	bMaxX := b.pos.X + b.Width
-	bMaxY := b.pos.Y + b.Height
+	aMaxX := a.Pos.X + a.Width
+	aMaxY := a.Pos.Y + a.Height
+	bMaxX := b.Pos.X + b.Width
+	bMaxY := b.Pos.Y + b.Height
 
-	if b.Id == a.Id {
+	if a == b {
 		return false
 	}
 
-	if aMaxX < b.pos.X {
+	if aMaxX < b.Pos.X {
 		return false
 	}
 
-	if a.pos.X > bMaxX {
+	if a.Pos.X > bMaxX {
 		return false
 	}
 
-	if aMaxY < b.pos.Y {
+	if aMaxY < b.Pos.Y {
 		return false
 	}
 
-	if a.pos.Y > bMaxY {
+	if a.Pos.Y > bMaxY {
 		return false
 	}
 
@@ -80,12 +78,12 @@ func (cs *CollisionSystem) split() {
 	nextLevel := cs.Level + 1
 	subWidth := cs.Bounds.Width / 2
 	subHeight := cs.Bounds.Height / 2
-	x := cs.Bounds.pos.X
-	y := cs.Bounds.pos.Y
+	x := cs.Bounds.Pos.X
+	y := cs.Bounds.Pos.Y
 
 	cs.Nodes = append(cs.Nodes, CollisionSystem{
 		Bounds: Bounds{
-			pos:    pixel.V(x+subWidth, y),
+			Pos:    pixel.V(x+subWidth, y),
 			Width:  subWidth,
 			Height: subHeight,
 		},
@@ -98,7 +96,7 @@ func (cs *CollisionSystem) split() {
 
 	cs.Nodes = append(cs.Nodes, CollisionSystem{
 		Bounds: Bounds{
-			pos:    pixel.V(x, y),
+			Pos:    pixel.V(x, y),
 			Width:  subWidth,
 			Height: subHeight,
 		},
@@ -111,7 +109,7 @@ func (cs *CollisionSystem) split() {
 
 	cs.Nodes = append(cs.Nodes, CollisionSystem{
 		Bounds: Bounds{
-			pos:    pixel.V(x, y+subHeight),
+			Pos:    pixel.V(x, y+subHeight),
 			Width:  subWidth,
 			Height: subHeight,
 		},
@@ -124,7 +122,7 @@ func (cs *CollisionSystem) split() {
 
 	cs.Nodes = append(cs.Nodes, CollisionSystem{
 		Bounds: Bounds{
-			pos:    pixel.V(x+subWidth, y+subHeight),
+			Pos:    pixel.V(x+subWidth, y+subHeight),
 			Width:  subWidth,
 			Height: subHeight,
 		},
@@ -139,14 +137,14 @@ func (cs *CollisionSystem) split() {
 func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 	index := -1
 
-	verticalMidpoint := cs.Bounds.pos.X + (cs.Bounds.Width / 2)
-	horizontalMidpoint := cs.Bounds.pos.Y + (cs.Bounds.Height / 2)
+	verticalMidpoint := cs.Bounds.Pos.X + (cs.Bounds.Width / 2)
+	horizontalMidpoint := cs.Bounds.Pos.Y + (cs.Bounds.Height / 2)
 
-	topQuadrant := (pRect.pos.Y < horizontalMidpoint) && (pRect.pos.Y+pRect.Height < horizontalMidpoint)
+	topQuadrant := (pRect.Pos.Y < horizontalMidpoint) && (pRect.Pos.Y+pRect.Height < horizontalMidpoint)
 
-	bottomQuadrant := (pRect.pos.Y > horizontalMidpoint)
+	bottomQuadrant := (pRect.Pos.Y > horizontalMidpoint)
 
-	if (pRect.pos.X < verticalMidpoint) && (pRect.pos.X+pRect.Width < verticalMidpoint) {
+	if (pRect.Pos.X < verticalMidpoint) && (pRect.Pos.X+pRect.Width < verticalMidpoint) {
 
 		if topQuadrant {
 			index = 1
@@ -154,7 +152,7 @@ func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 			index = 2
 		}
 
-	} else if pRect.pos.X > verticalMidpoint {
+	} else if pRect.Pos.X > verticalMidpoint {
 
 		if topQuadrant {
 			index = 0
@@ -241,7 +239,7 @@ func (cs *CollisionSystem) RetrievePoints(find *Bounds) []*Bounds {
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
 
-		xyMatch := potentials[o].pos.X == float64(find.pos.X) && potentials[o].pos.Y == float64(find.pos.Y)
+		xyMatch := potentials[o].Pos.X == float64(find.Pos.X) && potentials[o].Pos.Y == float64(find.Pos.Y)
 		if xyMatch && potentials[o].IsPoint() {
 			foundPoints = append(foundPoints, find)
 		}

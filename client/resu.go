@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
-	"github.com/segmentio/ksuid"
 )
 
 type Resu struct {
@@ -20,7 +19,6 @@ func NewResu(pos pixel.Vec) *Resu {
 		pos:    pos,
 		Height: 25,
 		Width:  25,
-		Id:     ksuid.New(),
 	}
 	r.PosBody = pos
 	r.PosHead = pos.Add(pixel.V(1, 24))
