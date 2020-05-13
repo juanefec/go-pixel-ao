@@ -21,7 +21,7 @@ import (
 
 const (
 	PlayerBaseSpeed = 185.0
-	DebugMode       = true
+	DebugMode       = false
 )
 
 var (
