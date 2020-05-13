@@ -231,6 +231,7 @@ func (cs *CollisionSystem) Insert(pRect *Bounds) {
 }
 
 //this method could be improved by remerging subnodes into their parent node when they have less than maximum objects
+//if we move collision system to the server, we could remove by bound reference rather than uid, and it would be more resource efficient
 func (cs *CollisionSystem) Remove(uid ksuid.KSUID) {
 	if len(cs.Objects) != 0 {
 		for i, b := range cs.Objects {

@@ -289,7 +289,6 @@ func run() {
 		if DebugMode {
 			imd := imdraw.New(nil)
 			imd.Color = pixel.RGB(1, 0, 0)
-			log.Println(len(cs.GetAllBounds()))
 			for _, b := range cs.GetAllBounds() {
 				imd.Push(
 					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
