@@ -16,8 +16,17 @@ type CollisionSystem struct {
 
 type Bounds struct {
 	Pos    pixel.Vec
+	Offset pixel.Vec
 	Width  float64
 	Height float64
+}
+
+func (b *Bounds) GetHitBoxX() float64 {
+	return b.Pos.X + b.Offset.X
+}
+
+func (b *Bounds) GetHitBoxY() float64 {
+	return b.Pos.Y + b.Offset.Y
 }
 
 func (b *Bounds) IsPoint() bool {
@@ -29,28 +38,28 @@ func (b *Bounds) IsPoint() bool {
 }
 
 func (b *Bounds) Intersects(a *Bounds) bool {
-	aMaxX := a.Pos.X + a.Width
-	aMaxY := a.Pos.Y + a.Height
-	bMaxX := b.Pos.X + b.Width
-	bMaxY := b.Pos.Y + b.Height
+	aMaxX := a.GetHitBoxX() + a.Width
+	aMaxY := a.GetHitBoxY() + a.Height
+	bMaxX := b.GetHitBoxX() + b.Width
+	bMaxY := b.GetHitBoxY() + b.Height
 
 	if a == b {
 		return false
 	}
 
-	if aMaxX < b.Pos.X {
+	if aMaxX < b.GetHitBoxX() {
 		return false
 	}
 
-	if a.Pos.X > bMaxX {
+	if a.GetHitBoxX() > bMaxX {
 		return false
 	}
 
-	if aMaxY < b.Pos.Y {
+	if aMaxY < b.GetHitBoxY() {
 		return false
 	}
 
-	if a.Pos.Y > bMaxY {
+	if a.GetHitBoxY() > bMaxY {
 		return false
 	}
 
@@ -140,11 +149,11 @@ func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 	verticalMidpoint := cs.Bounds.Pos.X + (cs.Bounds.Width / 2)
 	horizontalMidpoint := cs.Bounds.Pos.Y + (cs.Bounds.Height / 2)
 
-	topQuadrant := (pRect.Pos.Y < horizontalMidpoint) && (pRect.Pos.Y+pRect.Height < horizontalMidpoint)
+	topQuadrant := (pRect.GetHitBoxY() < horizontalMidpoint) && (pRect.GetHitBoxY()+pRect.Height < horizontalMidpoint)
 
-	bottomQuadrant := (pRect.Pos.Y > horizontalMidpoint)
+	bottomQuadrant := (pRect.GetHitBoxY() > horizontalMidpoint)
 
-	if (pRect.Pos.X < verticalMidpoint) && (pRect.Pos.X+pRect.Width < verticalMidpoint) {
+	if (pRect.GetHitBoxX() < verticalMidpoint) && (pRect.GetHitBoxX()+pRect.Width < verticalMidpoint) {
 
 		if topQuadrant {
 			index = 1
@@ -152,7 +161,7 @@ func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 			index = 2
 		}
 
-	} else if pRect.Pos.X > verticalMidpoint {
+	} else if pRect.GetHitBoxX() > verticalMidpoint {
 
 		if topQuadrant {
 			index = 0
@@ -239,7 +248,7 @@ func (cs *CollisionSystem) RetrievePoints(find *Bounds) []*Bounds {
 	potentials := cs.Retrieve(find)
 	for o := 0; o < len(potentials); o++ {
 
-		xyMatch := potentials[o].Pos.X == float64(find.Pos.X) && potentials[o].Pos.Y == float64(find.Pos.Y)
+		xyMatch := potentials[o].Pos.X == float64(find.GetHitBoxX()) && potentials[o].Pos.Y == float64(find.GetHitBoxY())
 		if xyMatch && potentials[o].IsPoint() {
 			foundPoints = append(foundPoints, find)
 		}

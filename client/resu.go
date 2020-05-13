@@ -17,7 +17,8 @@ func NewResu(pos pixel.Vec) *Resu {
 	r := Resu{}
 	r.Bounds = Bounds{
 		Pos:    pos,
-		Height: 25,
+		Offset: pixel.V(-12.5, -22.5),
+		Height: 12.5,
 		Width:  25,
 	}
 	r.PosBody = pos

@@ -145,7 +145,8 @@ func NewPlayer(name string, wizard *Wizard) Player {
 	p.dir = "down"
 	p.bounds = Bounds{
 		Pos:    pixel.V(2000, 2600),
-		Height: 25,
+		Offset: pixel.V(-12.5, -22.5),
+		Height: 12.5,
 		Width:  25,
 	}
 	p.maxmp = MaxMana

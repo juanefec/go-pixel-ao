@@ -291,11 +291,11 @@ func run() {
 			imd.Color = pixel.RGB(1, 0, 0)
 			for _, b := range cs.GetAllBounds() {
 				imd.Push(
-					pixel.V(b.Pos.X, b.Pos.Y),
-					pixel.V(b.Pos.X+b.Width, b.Pos.Y),
-					pixel.V(b.Pos.X+b.Width, b.Pos.Y+b.Height),
-					pixel.V(b.Pos.X, b.Pos.Y+b.Height),
-					pixel.V(b.Pos.X, b.Pos.Y),
+					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
+					pixel.V(b.GetHitBoxX()+b.Width, b.GetHitBoxY()),
+					pixel.V(b.GetHitBoxX()+b.Width, b.GetHitBoxY()+b.Height),
+					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()+b.Height),
+					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
 				)
 				imd.Rectangle(1)
 			}
