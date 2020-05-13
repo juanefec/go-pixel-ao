@@ -1,6 +1,9 @@
 package main
 
-import "github.com/faiface/pixel"
+import (
+	"github.com/faiface/pixel"
+	"github.com/segmentio/ksuid"
+)
 
 type CollisionSystem struct {
 	Bounds     Bounds
@@ -16,6 +19,7 @@ type Bounds struct {
 	pos    pixel.Vec
 	Width  float64
 	Height float64
+	Id     ksuid.KSUID
 }
 
 func (b *Bounds) IsPoint() bool {
@@ -34,6 +38,10 @@ func (b *Bounds) Intersects(a Bounds) bool {
 	aMaxY := a.pos.Y + a.Height
 	bMaxX := b.pos.X + b.Width
 	bMaxY := b.pos.Y + b.Height
+
+	if b.Id == a.Id {
+		return false
+	}
 
 	if aMaxX < b.pos.X {
 		return false

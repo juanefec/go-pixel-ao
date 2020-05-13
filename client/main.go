@@ -217,7 +217,7 @@ func run() {
 		Objects:    make([]Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0),
 	}
-	// cs.Insert(player.bounds)
+	cs.Insert(player.bounds)
 	cs.Insert(resu.Bounds)
 
 	socket := socket.NewSocket("localhost", 33333)
