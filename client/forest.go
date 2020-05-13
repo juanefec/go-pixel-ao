@@ -48,18 +48,18 @@ type Forest struct {
 }
 
 func generateRandomPosition(c, bot, top, left, rigth int64) []pixel.Vec {
-	poss := make([]pixel.Vec, c)
+	position := make([]pixel.Vec, c)
 	rand.Seed(c + top + bot + left + rigth)
-	for i := range poss {
-		poss[i] = pixel.V(random(left, rigth), random(bot, top))
+	for i := range position {
+		position[i] = pixel.V(random(left, rigth), random(bot, top))
 	}
-	return poss
+	return position
 }
 func random(min, max int64) float64 {
 	return float64(rand.Int63n(max-min) + min)
 }
 
-func NewForest() *Forest {
+func NewForest(cs *CollisionSystem) *Forest {
 	treeSheet := Pictures["./images/trees.png"]
 	treeBatch := pixel.NewBatch(&pixel.TrianglesData{}, treeSheet)
 	treeFrames := getFrames(treeSheet, 32, 32, 3, 3)
@@ -143,11 +143,11 @@ func NewForest() *Forest {
 	}
 
 	// Fill outside
-	poss := generateRandomPosition(200, 0, int64(pathTop)-100, 0, 1800)
-	poss = append(poss, generateRandomPosition(200, 0, int64(pathTop)-100, 2200, 4000)...)
-	for i := range poss {
+	position := generateRandomPosition(200, 0, int64(pathTop)-100, 0, 1800)
+	position = append(position, generateRandomPosition(200, 0, int64(pathTop)-100, 2200, 4000)...)
+	for i := range position {
 		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
-		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(poss[i]))
+		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(position[i]))
 	}
 
 	// fill with zombie trees
@@ -156,6 +156,12 @@ func NewForest() *Forest {
 	for i := 0; i <= len(zombieTrees)-1; i++ {
 		tree := pixel.NewSprite(*ztree.Pic, ztree.Frame)
 		tree.Draw(ztree.Batch, pixel.IM.Moved(zombieTrees[i]))
+		cs.Insert(&Bounds{
+			Pos:    zombieTrees[i],
+			Offset: pixel.V(-18, -60),
+			Height: 24,
+			Width:  46,
+		})
 	}
 
 	// fill with tall trees
@@ -173,6 +179,12 @@ func NewForest() *Forest {
 	for i := 0; i <= len(nltallTress)-1; i++ {
 		tree := pixel.NewSprite(*nlttree.Pic, nlttree.Frame)
 		tree.Draw(nlttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(nltallTress[i]))
+		cs.Insert(&Bounds{
+			Pos:    nltallTress[i],
+			Offset: pixel.V(-20, -129),
+			Height: 20,
+			Width:  26,
+		})
 	}
 
 	return &Forest{

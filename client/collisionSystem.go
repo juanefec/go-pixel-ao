@@ -315,6 +315,6 @@ func (cs *CollisionSystem) GetAllBounds() []*Bounds {
 	if len(cs.Nodes) == 0 {
 		return cs.Objects
 	} else {
-		return append(cs.Nodes[0].GetAllBounds(), append(cs.Nodes[1].GetAllBounds(), append(cs.Nodes[2].GetAllBounds(), cs.Nodes[3].GetAllBounds()...)...)...)
+		return append(cs.Objects, append(cs.Nodes[0].GetAllBounds(), append(cs.Nodes[1].GetAllBounds(), append(cs.Nodes[2].GetAllBounds(), cs.Nodes[3].GetAllBounds()...)...)...)...)
 	}
 }

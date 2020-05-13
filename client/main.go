@@ -200,12 +200,6 @@ func run() {
 		},
 	}
 
-	forest := NewForest()
-	//buda := NewBuda(pixel.V(2000, 3400))
-	otherPlayers := NewPlayersData()
-	playerInfo := NewPlayerInfo(&player, &otherPlayers, allSpells)
-	resu := NewResu(pixel.V(2000, 2900))
-
 	cs := CollisionSystem{
 		Bounds: Bounds{
 			Pos:    pixel.V(0, 0),
@@ -218,6 +212,13 @@ func run() {
 		Objects:    make([]*Bounds, 0),
 		Nodes:      make([]CollisionSystem, 0),
 	}
+
+	forest := NewForest(&cs)
+	//buda := NewBuda(pixel.V(2000, 3400))
+	otherPlayers := NewPlayersData()
+	playerInfo := NewPlayerInfo(&player, &otherPlayers, allSpells)
+	resu := NewResu(pixel.V(2000, 2900))
+
 	cs.Insert(&player.bounds)
 	cs.Insert(&resu.Bounds)
 
