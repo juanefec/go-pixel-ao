@@ -375,6 +375,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 							np := NewPlayer(p.Name, &wiz)
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
+							player.bounds.Uid = p.ID
 							cs.Insert(&player.bounds)
 						}
 						pd.AnimationsMutex.Unlock()
@@ -384,6 +385,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 						player.dead = p.Dead
 						player.hp = p.HP
 						player.invisible = p.Invisible
+						player.bounds.Pos = pixel.V(p.X, p.Y)
 					}
 				}
 				break

@@ -184,6 +184,7 @@ func (cs *CollisionSystem) Insert(pRect *Bounds) {
 	var index int
 
 	if len(cs.Nodes) > 0 == true {
+
 		index = cs.getIndex(pRect)
 
 		if index != -1 {
