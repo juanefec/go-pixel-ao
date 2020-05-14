@@ -21,7 +21,7 @@ import (
 
 const (
 	PlayerBaseSpeed = 185.0
-	DebugMode       = false
+	DebugMode       = true
 )
 
 var (
@@ -222,7 +222,7 @@ func run() {
 	cs.Insert(&player.bounds)
 	cs.Insert(&resu.Bounds)
 
-	socket := socket.NewSocket("localhost", 33333)
+	socket := socket.NewSocket("190.247.147.18", 33333)
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
@@ -291,15 +291,13 @@ func run() {
 			imd := imdraw.New(nil)
 			imd.Color = pixel.RGB(1, 0, 0)
 			for _, b := range cs.GetAllBounds() {
-				imd.Push(
-					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
-					pixel.V(b.GetHitBoxX()+b.Width, b.GetHitBoxY()),
-					pixel.V(b.GetHitBoxX()+b.Width, b.GetHitBoxY()+b.Height),
-					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()+b.Height),
-					pixel.V(b.GetHitBoxX(), b.GetHitBoxY()),
-				)
+				imd.Push(getRectangleVecs(pixel.V(b.GetHitBoxX(), b.GetHitBoxY()), pixel.V(b.Width, b.Height))...)
 				imd.Rectangle(1)
 			}
+
+			imd.Color = pixel.RGB(1, 1, 0)
+			cs.DrawDebugBounds(imd)
+
 			imd.Draw(win)
 		}
 

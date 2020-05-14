@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/imdraw"
 	"github.com/segmentio/ksuid"
 )
 
@@ -316,5 +317,13 @@ func (cs *CollisionSystem) GetAllBounds() []*Bounds {
 		return cs.Objects
 	} else {
 		return append(cs.Objects, append(cs.Nodes[0].GetAllBounds(), append(cs.Nodes[1].GetAllBounds(), append(cs.Nodes[2].GetAllBounds(), cs.Nodes[3].GetAllBounds()...)...)...)...)
+	}
+}
+
+func (cs *CollisionSystem) DrawDebugBounds(imd *imdraw.IMDraw) {
+	imd.Push(getRectangleVecs(cs.Bounds.Pos, pixel.V(cs.Bounds.Width, cs.Bounds.Height))...)
+	imd.Rectangle(1)
+	for _, b := range cs.Nodes {
+		b.DrawDebugBounds(imd)
 	}
 }
