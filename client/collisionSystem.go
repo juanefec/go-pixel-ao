@@ -181,6 +181,7 @@ func (cs *CollisionSystem) Insert(pRect *Bounds) {
 	if !pRect.Uid.IsNil() { //this if is stupid and should be removed in a future refactor
 		for _, b := range cs.GetAllBounds() {
 			if b.Uid == pRect.Uid {
+				b.Pos = pRect.Pos
 				return
 			}
 		}
