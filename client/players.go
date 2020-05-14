@@ -117,5 +117,4 @@ func (pd *PlayersData) Draw(win *pixelgl.Window, pl *Player) {
 	}
 	pd.AnimationsMutex.RUnlock()
 	pd.Skins.Draw(win)
-
 }

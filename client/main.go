@@ -375,18 +375,9 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 							np := NewPlayer(p.Name, &wiz)
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
+							cs.Insert(&player.bounds)
 						}
 						pd.AnimationsMutex.Unlock()
-
-						//its pretty shitty to execute the two following statements every loop and should be removed in a future refactor
-						player.bounds = Bounds{
-							Pos:    pixel.V(p.X, p.Y),
-							Offset: pixel.V(-12.5, -22.5),
-							Height: 12.5,
-							Width:  25,
-							Uid:    p.ID,
-						}
-						cs.Insert(&player.bounds)
 
 						player.dir = p.Dir
 						player.moving = p.Moving

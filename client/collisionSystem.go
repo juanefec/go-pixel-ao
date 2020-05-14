@@ -178,22 +178,12 @@ func (cs *CollisionSystem) getIndex(pRect *Bounds) int {
 }
 
 func (cs *CollisionSystem) Insert(pRect *Bounds) {
-	if !pRect.Uid.IsNil() { //this if is stupid and should be removed in a future refactor
-		for _, b := range cs.GetAllBounds() {
-			if b.Uid == pRect.Uid {
-				b.Pos = pRect.Pos
-				return
-			}
-		}
-	}
-
 	cs.Total++
 
 	i := 0
 	var index int
 
 	if len(cs.Nodes) > 0 == true {
-
 		index = cs.getIndex(pRect)
 
 		if index != -1 {
