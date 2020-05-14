@@ -47,7 +47,7 @@ type Forest struct {
 	Trees                                                          Trees
 }
 
-func generateRandomPosition(c, bot, top, left, rigth int64) []pixel.Vec {
+func generateRandomPositions(c, bot, top, left, rigth int64) []pixel.Vec {
 	position := make([]pixel.Vec, c)
 	rand.Seed(c + top + bot + left + rigth)
 	for i := range position {
@@ -143,15 +143,15 @@ func NewForest(cs *CollisionSystem) *Forest {
 	}
 
 	// Fill outside
-	position := generateRandomPosition(200, 0, int64(pathTop)-100, 0, 1800)
-	position = append(position, generateRandomPosition(200, 0, int64(pathTop)-100, 2200, 4000)...)
+	position := generateRandomPositions(200, 0, int64(pathTop)-100, 0, 1800)
+	position = append(position, generateRandomPositions(200, 0, int64(pathTop)-100, 2200, 4000)...)
 	for i := range position {
 		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
 		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(position[i]))
 	}
 
 	// fill with zombie trees
-	zombieTrees := generateRandomPosition(5, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	zombieTrees := generateRandomPositions(20, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	ztree := trees[ZombieTree]
 	for i := 0; i <= len(zombieTrees)-1; i++ {
 		tree := pixel.NewSprite(*ztree.Pic, ztree.Frame)
@@ -167,14 +167,14 @@ func NewForest(cs *CollisionSystem) *Forest {
 	// fill with tall trees
 	// commented because they were ugly
 
-	// tallTress := generateRandomPosition(10, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	// tallTress := generateRandomPositions(10, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	// ttree := trees[TallTree]
 	// for i := 0; i <= len(tallTress)-1; i++ {
 	// 	tree := pixel.NewSprite(*ttree.Pic, ttree.Frame)
 	// 	tree.Draw(ttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(tallTress[i]))
 	// }
 
-	nltallTress := generateRandomPosition(8, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	nltallTress := generateRandomPositions(20, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	nlttree := trees[NoLeafsTallTree]
 	for i := 0; i <= len(nltallTress)-1; i++ {
 		tree := pixel.NewSprite(*nlttree.Pic, nlttree.Frame)
