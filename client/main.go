@@ -295,6 +295,12 @@ func run() {
 				imd.Rectangle(1)
 			}
 
+			imd.Color = pixel.RGB(0, 1, 0)
+			for _, b := range cs.Retrieve(&player.bounds) {
+				imd.Push(getRectangleVecs(pixel.V(b.GetHitBoxX(), b.GetHitBoxY()), pixel.V(b.Width, b.Height))...)
+				imd.Rectangle(1)
+			}
+
 			imd.Color = pixel.RGB(1, 1, 0)
 			cs.DrawDebugBounds(imd)
 
