@@ -137,17 +137,11 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *Collisio
 					player.bounds.Pos.X += dist
 					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
 						player.bounds.Pos.X -= dist
-						if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
-							player.bounds.Pos.X -= dist
-						}
 					}
 				} else {
 					player.bounds.Pos.Y += dist
 					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
 						player.bounds.Pos.Y -= dist
-						if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
-							player.bounds.Pos.X -= dist
-						}
 					}
 				}
 			}
