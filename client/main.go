@@ -204,7 +204,7 @@ func run() {
 		Bounds: Bounds{
 			Pos:    pixel.V(0, 0),
 			Width:  4000,
-			Height: 5200,
+			Height: 4000,
 		},
 		MaxObjects: 10,
 		MaxLevels:  5,
@@ -375,7 +375,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 							np := NewPlayer(p.Name, &wiz)
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
-							player.bounds.Uid = p.ID
+							cs.Remove(player.bounds.Uid)
 							cs.Insert(&player.bounds)
 						}
 						pd.AnimationsMutex.Unlock()
@@ -552,10 +552,10 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds,
 				json.Unmarshal(msg.Payload, &m)
 				if _, exist := pd.CurrentAnimations[m.ID]; exist {
 					pd.Online--
+					cs.Remove(pd.CurrentAnimations[m.ID].bounds.Uid)
 					pd.AnimationsMutex.Lock()
 					delete(pd.CurrentAnimations, m.ID)
 					pd.AnimationsMutex.Unlock()
-					cs.Remove(m.ID)
 				}
 			}
 
