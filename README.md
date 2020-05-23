@@ -4,6 +4,8 @@ Trying to develop some sort of game using only go and a basic tcp4 socket connec
 
 I'm using [pixel](https://github.com/faiface/pixel "Pixel Github") for drawing and interacting with the user system
 
+![](demo.gif)
+
 ## How to run
 ### Server
 1. ``git clone https://github.com/juanefec/go-pixel-ao``
