@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"log"
+	"math"
 	"os"
 	"sync"
 
@@ -16,6 +17,49 @@ func getFrames(pic pixel.Picture, w, h, qw, qh float64) (frames []pixel.Rect) {
 		}
 	}
 	return
+}
+
+func Map(v, s1, st1, s2, st2 float64) float64 {
+	newval := (v-s1)/(st1-s1)*(st2-s2) + s2
+	if s2 < st2 {
+		if newval < s2 {
+			return s2
+		}
+		if newval > st2 {
+			return st2
+		}
+	} else {
+		if newval > s2 {
+			return s2
+		}
+		if newval < st2 {
+			return st2
+		}
+	}
+	return newval
+}
+
+func Dist(v1, v2 pixel.Vec) float64 {
+	return math.Sqrt(math.Pow(math.Abs(v1.X-v2.X), 2) + math.Pow(math.Abs(v1.Y-v2.Y), 2))
+}
+
+func VectorMag(vec pixel.Vec) float64 {
+	return math.Sqrt((vec.X * vec.X) + (vec.Y * vec.Y))
+}
+
+func VectorDiv(vec pixel.Vec, n float64) pixel.Vec {
+	return pixel.V(
+		vec.X/n,
+		vec.Y/n,
+	)
+}
+
+func VectorNormalize(vec pixel.Vec) pixel.Vec {
+	m := VectorMag(vec)
+	if m != 0 {
+		return VectorDiv(vec, m)
+	}
+	return pixel.ZV
 }
 
 func loadPicture(path string) (pixel.Picture, error) {

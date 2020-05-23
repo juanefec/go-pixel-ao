@@ -17,11 +17,15 @@ const (
 	UpdateClient Event = iota
 	UpdateServer
 	Spell
+	Chat
+	Death
+	UpdateRanking
+	ConfirmIDReception
 	Disconect
 )
 
 func (d Event) String() string {
-	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Disconect"}[d]
+	return [...]string{"UpdateClient", "UpdateServer", "Spell", "Chat", "Death", "UpdateRanking", "Disconect"}[d]
 }
 
 type Mesg struct {
@@ -51,21 +55,45 @@ type DisconectMsg struct {
 }
 
 type SpellMsg struct {
-	ID       ksuid.KSUID `json:"id"`
-	Type     string      `json:"type"`
-	TargetID ksuid.KSUID `json:"target_id"`
-	Name     string      `json:"name"`
-	X        float64     `json:"x"`
-	Y        float64     `json:"y"`
+	ID         ksuid.KSUID `json:"id"`
+	SpellType  string      `json:"spell_type"`
+	SpellName  string      `json:"spell_name"`
+	TargetID   ksuid.KSUID `json:"target_id"`
+	Name       string      `json:"name"`
+	X          float64     `json:"x"`
+	Y          float64     `json:"y"`
+	ChargeTime float64     `json:"charge_time"`
 }
 
 type PlayerMsg struct {
-	ID     ksuid.KSUID `json:"id"`
-	Name   string      `json:"name"`
-	Skin   int         `json:"skin"`
-	X      float64     `json:"x"`
-	Y      float64     `json:"y"`
-	Dir    string      `json:"dir"`
-	Moving bool        `json:"moving"`
-	Dead   bool        `json:"dead"`
+	ID        ksuid.KSUID `json:"id"`
+	Name      string      `json:"name"`
+	Skin      int         `json:"skin"`
+	HP        float64     `json:"hp"`
+	X         float64     `json:"x"`
+	Y         float64     `json:"y"`
+	Dir       string      `json:"dir"`
+	Moving    bool        `json:"moving"`
+	Dead      bool        `json:"dead"`
+	Invisible bool        `json:"invisible"`
+}
+
+type ChatMsg struct {
+	ID      ksuid.KSUID `json:"id"`
+	Name    string      `json:"name"`
+	Message string      `json:"message"`
+}
+
+type DeathMsg struct {
+	Killed     ksuid.KSUID `json:"killed_id"`
+	KilledName string      `json:"killed_name"`
+	Killer     ksuid.KSUID `json:"killer_id"`
+	KillerName string      `json:"killer_name"`
+}
+
+type RankingPosMsg struct {
+	Name string      `json:"name"`
+	ID   ksuid.KSUID `json:"id"`
+	K    int         `json:"kills"`
+	D    int         `json:"deaths"`
 }

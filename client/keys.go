@@ -15,6 +15,18 @@ const (
 	Right  = 4000
 )
 
+type KeyConfig struct {
+	Apoca          int `json:"apoca_key"`
+	Desca          int `json:"desca_key"`
+	Explo          int `json:"explo_key"`
+	PrimarySkill   int `json:"primary_skill_key"`
+	SecondarySkill int `json:"secondary_skill_key"`
+	Rojas          int `json:"rojas_key"`
+	Azules         int `json:"azules_key"`
+}
+
+var min = 99999999999999
+
 func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 	last := time.Now()
 	const (
@@ -33,9 +45,9 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 
 	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
 		var key pixelgl.Button
-		min := 99999999999999
+		min := min
 		for k, v := range m {
-			if v < min && v > 0 {
+			if v < min && v >= 0 {
 				key = k
 				min = v
 			}
@@ -43,109 +55,116 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 		return key == keyPressed
 	}
 
-	tpTime := time.Now()
+	//tpTime := time.Now()
 
 	for !win.Closed() {
 		dt := time.Since(last).Seconds()
 		last = time.Now()
+		if !player.chat.chatting && !player.rooted {
+			var axisX bool
+			dist := .0
+			if win.Pressed(KeyLeft) {
+				if latestPressed(KeyLeft, timeMap) {
+					player.moving = true
+					player.dir = "left"
+					if player.pos.X > Left && player.collitionDir != "left" {
+						axisX = true
+						dist -= player.playerMovementSpeed * dt
+						timeMap[KeyLeft] = 0
+					} else {
+						player.moving = false
+					}
+				}
+				timeMap[KeyLeft]++
+			} else {
+				timeMap[KeyLeft] = -1
+			}
 
-		if win.Pressed(KeyLeft) {
-			if latestPressed(KeyLeft, timeMap) {
-				player.moving = true
-				player.dir = "left"
-				if player.pos.X > Left {
-					player.pos.X -= PlayerSpeed * dt
+			if win.Pressed(KeyRight) {
+				if latestPressed(KeyRight, timeMap) {
+					player.moving = true
+					player.dir = "right"
+					if player.pos.X < Right && player.collitionDir != "right" {
+						axisX = true
+						dist += player.playerMovementSpeed * dt
+						timeMap[KeyRight] = 0
+					} else {
+						player.moving = false
+					}
+				}
+				timeMap[KeyRight]++
+			} else {
+				timeMap[KeyRight] = -1
+			}
+
+			if win.Pressed(KeyDown) {
+				if latestPressed(KeyDown, timeMap) {
+					player.moving = true
+					player.dir = "down"
+					if player.pos.Y > Bottom && player.collitionDir != "down" {
+						axisX = false
+						dist -= player.playerMovementSpeed * dt
+						timeMap[KeyDown] = 0
+					} else {
+						player.moving = false
+					}
+				}
+				timeMap[KeyDown]++
+
+			} else {
+				timeMap[KeyDown] = -1
+			}
+
+			if win.Pressed(KeyUp) {
+				if latestPressed(KeyUp, timeMap) {
+					player.moving = true
+					player.dir = "up"
+					if player.pos.Y < Top && player.collitionDir != "up" {
+						axisX = false
+						dist += player.playerMovementSpeed * dt
+						timeMap[KeyUp] = 0
+					} else {
+						player.moving = false
+					}
+				}
+				timeMap[KeyUp]++
+			} else {
+				timeMap[KeyUp] = -1
+			}
+
+			if player.moving {
+				if axisX {
+					player.pos.X += dist
 				} else {
-					player.moving = false
+					player.pos.Y += dist
 				}
 			}
-			timeMap[KeyLeft]++
-		} else {
-			timeMap[KeyLeft] = -1
-		}
 
-		if win.Pressed(KeyRight) {
-			if latestPressed(KeyRight, timeMap) {
-				player.moving = true
-				player.dir = "right"
-				if player.pos.X < Right {
-					player.pos.X += PlayerSpeed * dt
-				} else {
-					player.moving = false
-				}
+			if win.JustPressed(pixelgl.Button(Key.Explo)) {
+				cursor.SetSpellExploMode()
 			}
-			timeMap[KeyRight]++
-		} else {
-			timeMap[KeyRight] = -1
-		}
 
-		if win.Pressed(KeyDown) {
-			if latestPressed(KeyDown, timeMap) {
-				player.moving = true
-				player.dir = "down"
-				if player.pos.Y > Bottom {
-					player.pos.Y -= PlayerSpeed * dt
-				} else {
-					player.moving = false
-				}
+			if win.JustPressed(pixelgl.Button(Key.Apoca)) {
+				cursor.SetSpellApocaMode()
 			}
-			timeMap[KeyDown]++
 
-		} else {
-			timeMap[KeyDown] = -1
-		}
-
-		if win.Pressed(KeyUp) {
-			if latestPressed(KeyUp, timeMap) {
-				player.moving = true
-				player.dir = "up"
-				if player.pos.Y < Top {
-					player.pos.Y += PlayerSpeed * dt
-				} else {
-					player.moving = false
-				}
+			if win.JustPressed(pixelgl.Button(Key.Desca)) {
+				cursor.SetSpellDescaMode()
 			}
-			timeMap[KeyUp]++
-		} else {
-			timeMap[KeyUp] = -1
-		}
 
-		if win.Pressed(pixelgl.KeyF) {
+		} else {
+			player.moving = false
+		}
+		if win.Pressed(pixelgl.Button(Key.Azules)) {
 			player.drinkingManaPotions = true
 		} else {
 			player.drinkingManaPotions = false
 		}
 
-		if win.Pressed(pixelgl.MouseButtonRight) {
+		if win.Pressed(pixelgl.Button(Key.Rojas)) {
 			player.drinkingHealthPotions = true
 		} else {
 			player.drinkingHealthPotions = false
-		}
-
-		if win.JustPressed(pixelgl.Key1) {
-			cursor.SetSpellExploMode()
-		}
-
-		if win.JustPressed(pixelgl.Key2) {
-			cursor.SetSpellApocaMode()
-		}
-
-		if win.JustPressed(pixelgl.Key3) {
-			cursor.SetSpellDescaMode()
-		}
-
-		if win.JustPressed(pixelgl.Key4) {
-			cursor.SetSpellFireballMode()
-		}
-
-		if player.sname == "creagod" && win.Pressed(pixelgl.KeyLeftShift) {
-			if win.JustPressed(pixelgl.MouseButtonLeft) {
-				if dt := time.Since(tpTime).Seconds(); dt > time.Second.Seconds()/6 {
-					tpTime = time.Now()
-					tppos := player.cam.Unproject(win.MousePosition())
-					player.pos.X, player.pos.Y = tppos.X, tppos.Y
-				}
-			}
 		}
 
 		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
