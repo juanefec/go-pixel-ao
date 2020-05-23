@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 
 	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
@@ -20,6 +21,7 @@ import (
 
 const (
 	PlayerBaseSpeed = 185.0
+	DebugMode       = true
 )
 
 var (
@@ -198,11 +200,27 @@ func run() {
 		},
 	}
 
-	forest := NewForest()
+	cs := CollisionSystem{
+		Bounds: Bounds{
+			Pos:    pixel.V(0, 0),
+			Width:  4000,
+			Height: 4000,
+		},
+		MaxObjects: 10,
+		MaxLevels:  5,
+		Level:      0,
+		Objects:    make([]*Bounds, 0),
+		Nodes:      make([]CollisionSystem, 0),
+	}
+
+	forest := NewForest(&cs)
 	//buda := NewBuda(pixel.V(2000, 3400))
 	otherPlayers := NewPlayersData()
 	playerInfo := NewPlayerInfo(&player, &otherPlayers, allSpells)
 	resu := NewResu(pixel.V(2000, 2900))
+
+	cs.Insert(&player.bounds)
+	cs.Insert(&resu.Bounds)
 
 	socket := socket.NewSocket("190.247.147.18", 33333)
 	defer socket.Close()
@@ -220,15 +238,15 @@ func run() {
 		panic(err)
 	}
 	cursor := NewCursor(win)
-	go keyInputs(win, &player, cursor)
-	go GameUpdate(socket, &otherPlayers, &player, allSpells)
+	go keyInputs(win, &player, cursor, &cs)
+	go GameUpdate(socket, &otherPlayers, &player, allSpells, &cs)
 	fps := 0
 	unatachedCam := false
 	offset := pixel.ZV
 	newCenter := pixel.ZV
 	for !win.Closed() {
 		win.Clear(colornames.Forestgreen)
-		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
+		cam := pixel.IM.Scaled(player.bounds.Pos, Zoom).Moved(win.Bounds().Center().Sub(player.bounds.Pos))
 
 		player.cam = cam
 
@@ -238,11 +256,11 @@ func run() {
 
 				if !unatachedCam {
 					unatachedCam = true
-					offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
+					offset = cam.Unproject(win.MousePosition()).Sub(player.bounds.Pos)
 					newCenter = cam.Unproject(win.MousePosition()).Sub(newCenter).Sub(offset)
 
 				}
-				newCenter = cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
+				newCenter = cam.Unproject(win.MousePosition()).Sub(player.bounds.Pos).Sub(offset)
 			} else {
 				unatachedCam = false
 			}
@@ -251,6 +269,7 @@ func run() {
 			unatachedCam = false
 		}
 		win.SetMatrix(cam)
+
 		forest.GrassBatch.Draw(win)
 		forest.FenceBatchHTOP.Draw(win)
 		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
@@ -266,7 +285,27 @@ func run() {
 		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
 		chatlog.Draw(win, cam)
-		cursor.Draw(cam, player.pos)
+		cursor.Draw(cam, player.bounds.Pos)
+
+		if DebugMode {
+			imd := imdraw.New(nil)
+			imd.Color = pixel.RGB(1, 0, 0)
+			for _, b := range cs.GetAllBounds() {
+				imd.Push(getRectangleVecs(pixel.V(b.GetHitBoxX(), b.GetHitBoxY()), pixel.V(b.Width, b.Height))...)
+				imd.Rectangle(1)
+			}
+
+			imd.Color = pixel.RGB(0, 1, 0)
+			for _, b := range cs.Retrieve(&player.bounds) {
+				imd.Push(getRectangleVecs(pixel.V(b.GetHitBoxX(), b.GetHitBoxY()), pixel.V(b.Width, b.Height))...)
+				imd.Rectangle(1)
+			}
+
+			imd.Color = pixel.RGB(1, 1, 0)
+			cs.DrawDebugBounds(imd)
+
+			imd.Draw(win)
+		}
 
 		fps++
 		if !player.chat.chatting && win.JustPressed(pixelgl.KeyZ) {
@@ -312,7 +351,7 @@ func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
 	s.O <- models.NewMesg(models.Death, dmm)
 }
 
-func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds) {
+func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds, cs *CollisionSystem) {
 	for {
 		select {
 		case data := <-s.I:
@@ -324,7 +363,6 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				json.Unmarshal(msg.Payload, &players)
 
 				for i := 0; i <= len(players)-1; i++ {
-
 					p := players[i]
 					if p.ID != s.ClientID {
 						pd.AnimationsMutex.Lock()
@@ -337,14 +375,17 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 							np := NewPlayer(p.Name, &wiz)
 							pd.CurrentAnimations[p.ID] = &np
 							player, _ = pd.CurrentAnimations[p.ID]
+							cs.Remove(player.bounds.Uid)
+							cs.Insert(&player.bounds)
 						}
 						pd.AnimationsMutex.Unlock()
-						player.pos = pixel.V(p.X, p.Y)
+
 						player.dir = p.Dir
 						player.moving = p.Moving
 						player.dead = p.Dead
 						player.hp = p.HP
 						player.invisible = p.Invisible
+						player.bounds.Pos = pixel.V(p.X, p.Y)
 					}
 				}
 				break
@@ -401,21 +442,21 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.Projectile[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.Pos)
 							centerMatrix := pixel.IM
 							switch spell.SpellName {
 							case "fireball":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, 2)
 							case "icesnipe":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()).Scaled(caster.bounds.Pos, .6)
 							case "healshot", "manashot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, .6)
 							case "rockshot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle())
 							}
 							newSpell.caster = spell.ID
 							newSpell.vel = vel
-							newSpell.pos = caster.pos
+							newSpell.pos = caster.bounds.Pos
 							newSpell.matrix = &centerMatrix
 							newSpell.step = sd.Frames[0]
 							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
@@ -442,10 +483,10 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.ChargedProjectile[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.bounds.Pos)
 							centerMatrix := pixel.IM
 							if spell.SpellName == "arrowshot" {
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+								centerMatrix = caster.bodyMatrix.Rotated(caster.bounds.Pos, vel.Angle()+(math.Pi/2)).Scaled(caster.bounds.Pos, 3)
 							} else {
 								break
 							}
@@ -453,7 +494,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 							newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
 							newSpell.caster = spell.ID
 							newSpell.vel = vel
-							newSpell.pos = caster.pos
+							newSpell.pos = caster.bounds.Pos
 							newSpell.matrix = &centerMatrix
 							newSpell.step = sd.Frames[0]
 							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
@@ -480,7 +521,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 						sd := spells.Movement[i]
 						if spell.SpellName == sd.SpellName {
 							caster := pd.CurrentAnimations[spell.ID]
-							newSpell.pos = caster.pos
+							newSpell.pos = caster.bounds.Pos
 							centerMatrix := pixel.IM.Moved(newSpell.pos)
 							newSpell.caster = spell.ID
 							newSpell.matrix = &centerMatrix
@@ -511,6 +552,7 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 				json.Unmarshal(msg.Payload, &m)
 				if _, exist := pd.CurrentAnimations[m.ID]; exist {
 					pd.Online--
+					cs.Remove(pd.CurrentAnimations[m.ID].bounds.Uid)
 					pd.AnimationsMutex.Lock()
 					delete(pd.CurrentAnimations, m.ID)
 					pd.AnimationsMutex.Unlock()

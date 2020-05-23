@@ -47,19 +47,19 @@ type Forest struct {
 	Trees                                                          Trees
 }
 
-func generateRandomPoss(c, bot, top, left, rigth int64) []pixel.Vec {
-	poss := make([]pixel.Vec, c)
+func generateRandomPositions(c, bot, top, left, rigth int64) []pixel.Vec {
+	position := make([]pixel.Vec, c)
 	rand.Seed(c + top + bot + left + rigth)
-	for i := range poss {
-		poss[i] = pixel.V(random(left, rigth), random(bot, top))
+	for i := range position {
+		position[i] = pixel.V(random(left, rigth), random(bot, top))
 	}
-	return poss
+	return position
 }
 func random(min, max int64) float64 {
 	return float64(rand.Int63n(max-min) + min)
 }
 
-func NewForest() *Forest {
+func NewForest(cs *CollisionSystem) *Forest {
 	treeSheet := Pictures["./images/trees.png"]
 	treeBatch := pixel.NewBatch(&pixel.TrianglesData{}, treeSheet)
 	treeFrames := getFrames(treeSheet, 32, 32, 3, 3)
@@ -143,36 +143,48 @@ func NewForest() *Forest {
 	}
 
 	// Fill outside
-	poss := generateRandomPoss(200, 0, int64(pathTop)-100, 0, 1800)
-	poss = append(poss, generateRandomPoss(200, 0, int64(pathTop)-100, 2200, 4000)...)
-	for i := range poss {
+	position := generateRandomPositions(200, 0, int64(pathTop)-100, 0, 1800)
+	position = append(position, generateRandomPositions(200, 0, int64(pathTop)-100, 2200, 4000)...)
+	for i := range position {
 		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
-		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(poss[i]))
+		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(position[i]))
 	}
 
 	// fill with zombie trees
-	zombieTrees := generateRandomPoss(5, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	zombieTrees := generateRandomPositions(20, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	ztree := trees[ZombieTree]
 	for i := 0; i <= len(zombieTrees)-1; i++ {
 		tree := pixel.NewSprite(*ztree.Pic, ztree.Frame)
 		tree.Draw(ztree.Batch, pixel.IM.Moved(zombieTrees[i]))
+		cs.Insert(&Bounds{
+			Pos:    zombieTrees[i],
+			Offset: pixel.V(-18, -60),
+			Height: 24,
+			Width:  46,
+		})
 	}
 
 	// fill with tall trees
 	// commented because they were ugly
 
-	// tallTress := generateRandomPoss(10, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	// tallTress := generateRandomPositions(10, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	// ttree := trees[TallTree]
 	// for i := 0; i <= len(tallTress)-1; i++ {
 	// 	tree := pixel.NewSprite(*ttree.Pic, ttree.Frame)
 	// 	tree.Draw(ttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(tallTress[i]))
 	// }
 
-	nltallTress := generateRandomPoss(8, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
+	nltallTress := generateRandomPositions(20, int64(pathTop)+100, int64(arenaTop), 1100, 2900)
 	nlttree := trees[NoLeafsTallTree]
 	for i := 0; i <= len(nltallTress)-1; i++ {
 		tree := pixel.NewSprite(*nlttree.Pic, nlttree.Frame)
 		tree.Draw(nlttree.Batch, pixel.IM.Scaled(pixel.ZV, 1.2).Moved(nltallTress[i]))
+		cs.Insert(&Bounds{
+			Pos:    nltallTress[i],
+			Offset: pixel.V(-20, -129),
+			Height: 20,
+			Width:  26,
+		})
 	}
 
 	return &Forest{

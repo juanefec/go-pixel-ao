@@ -27,7 +27,7 @@ type KeyConfig struct {
 
 var min = 99999999999999
 
-func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
+func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor, cs *CollisionSystem) { // collision system should be removed in a future refactor
 	last := time.Now()
 	const (
 		KeyUp    = pixelgl.KeyW
@@ -67,7 +67,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyLeft, timeMap) {
 					player.moving = true
 					player.dir = "left"
-					if player.pos.X > Left && player.collitionDir != "left" {
+					if player.bounds.Pos.X > Left {
 						axisX = true
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyLeft] = 0
@@ -84,7 +84,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyRight, timeMap) {
 					player.moving = true
 					player.dir = "right"
-					if player.pos.X < Right && player.collitionDir != "right" {
+					if player.bounds.Pos.X < Right {
 						axisX = true
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyRight] = 0
@@ -101,7 +101,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyDown, timeMap) {
 					player.moving = true
 					player.dir = "down"
-					if player.pos.Y > Bottom && player.collitionDir != "down" {
+					if player.bounds.Pos.Y > Bottom {
 						axisX = false
 						dist -= player.playerMovementSpeed * dt
 						timeMap[KeyDown] = 0
@@ -119,7 +119,7 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 				if latestPressed(KeyUp, timeMap) {
 					player.moving = true
 					player.dir = "up"
-					if player.pos.Y < Top && player.collitionDir != "up" {
+					if player.bounds.Pos.Y < Top {
 						axisX = false
 						dist += player.playerMovementSpeed * dt
 						timeMap[KeyUp] = 0
@@ -134,9 +134,21 @@ func keyInputs(win *pixelgl.Window, player *Player, cursor *Cursor) {
 
 			if player.moving {
 				if axisX {
-					player.pos.X += dist
+					player.bounds.Pos.X += dist
+					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
+						player.bounds.Pos.X -= dist
+					} else {
+						cs.Remove(player.bounds.Uid)
+						cs.Insert(&player.bounds)
+					}
 				} else {
-					player.pos.Y += dist
+					player.bounds.Pos.Y += dist
+					if len(cs.RetrieveIntersections(&player.bounds)) != 0 {
+						player.bounds.Pos.Y -= dist
+					} else {
+						cs.Remove(player.bounds.Uid)
+						cs.Insert(&player.bounds)
+					}
 				}
 			}
 
