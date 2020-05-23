@@ -13,4 +13,5 @@ I'm using [pixel](https://github.com/faiface/pixel "Pixel Github") for drawing a
 3. ``go run ./server/main.go``
 ### Client
 
-1. ``go run ./client/main.go ./client/utils.go ./client/keys.go``
+1. ``cd go-pixel-ao/client``
+2. ``go run .``
