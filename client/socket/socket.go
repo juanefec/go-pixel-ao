@@ -9,18 +9,21 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/juanefec/go-pixel-ao/models"
 	"github.com/segmentio/ksuid"
 )
 
 // Socket stores the connection and the IO to comunicate wit the server
 type Socket struct {
+	Online   bool
 	ClientID ksuid.KSUID
 	conn     *net.Conn
 	I, O     chan []byte
 }
 
 // Close the connection and IO
-func (s Socket) Close() {
+func (s *Socket) Close() {
+	s.Online = false
 	(*s.conn).Close()
 }
 
@@ -34,17 +37,24 @@ func NewSocket(ip string, port int) *Socket {
 		os.Exit(1)
 	}
 	s := &Socket{
-		conn: &conn,
-		I:    make(chan []byte),
-		O:    make(chan []byte),
+		Online: true,
+		conn:   &conn,
+		I:      make(chan []byte),
+		O:      make(chan []byte, 512),
 	}
 	reader := bufio.NewReader(conn)
 	for s.ClientID == ksuid.Nil {
 		data, _, _ := reader.ReadLine()
-		if len(data) == 20 {
-			_ = s.ClientID.UnmarshalBinary(data)
+		s.ClientID, err = ksuid.Parse(string(data))
+		if err != nil {
+			log.Println(string(data))
+			log.Println(err)
+		}
+		if s.ClientID != ksuid.Nil {
+			s.O <- models.NewMesg(models.ConfirmIDReception, nil)
 			log.Printf("Client ID: %v", s.ClientID.String())
 		}
+
 	}
 	go s.reciver()
 	go s.sender()
@@ -57,8 +67,11 @@ func NewSocket(ip string, port int) *Socket {
 //message order [newApoca|id;name;x;y]
 
 func (s *Socket) reciver() {
+	defer s.Close()
+
 	var buffer bytes.Buffer
 	r := bufio.NewReader(*s.conn)
+
 	for {
 
 		data, isPrefix, err := r.ReadLine()
@@ -68,25 +81,33 @@ func (s *Socket) reciver() {
 				continue
 			}
 			s.I <- buffer.Bytes()
-			//log.Printf("Recived: %s", buffer.String())
 			buffer = bytes.Buffer{}
+		} else {
+			return
 		}
 
 	}
 }
 
 func (s *Socket) sender() {
+	defer s.Close()
+
 	var w = bufio.NewWriter(*s.conn)
 
-	for {
-		select {
-
-		case message := <-s.O:
-			w.Write(message)
-			if err := w.Flush(); err != nil {
-				return
-			}
-		default:
+	for message := range s.O {
+		message = makeMessage(message)
+		w.Write(message)
+		if err := w.Flush(); err != nil {
+			s.Close()
+			return
 		}
+
 	}
+}
+
+var Newline = []byte{'\n'}
+
+func makeMessage(d []byte) []byte {
+	d = append(d, Newline...)
+	return d
 }

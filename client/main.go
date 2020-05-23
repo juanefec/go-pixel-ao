@@ -1,15 +1,10 @@
 package main
 
 import (
-	"fmt"
-	"image"
+	"encoding/json"
+	"io/ioutil"
 	"log"
 	"math"
-	"math/rand"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	_ "image/png"
@@ -18,543 +13,510 @@ import (
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/faiface/pixel/text"
 	"github.com/juanefec/go-pixel-ao/client/socket"
-	"github.com/segmentio/ksuid"
+	"github.com/juanefec/go-pixel-ao/models"
 	"golang.org/x/image/colornames"
 	"golang.org/x/image/font/basicfont"
 )
 
-var (
-	camSpeed  = 200.0
-	Zoom      = 1.0
-	ZoomSpeed = 1.2
-	frames    = 0
-	second    = time.Tick(time.Second)
-)
-var (
-	Newline      = []byte{'\n'}
-	TreeQuantity = 1000
-	BodyUp       = []int{12, 13, 14, 15, 16, 17}
-	BodyDown     = []int{18, 19, 20, 21, 22, 23}
-	BodyLeft     = []int{6, 7, 8, 9, 10}
-	BodyRight    = []int{0, 1, 2, 3, 4}
-
-	ApocaFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
-
-	Pictures map[string]pixel.Picture
-)
-
-func makeMessage(d []byte) []byte {
-	d = append(d, Newline...)
-	return d
-}
-
 const (
-	message       = "Ping"
-	StopCharacter = "\r\n\r\n"
+	PlayerBaseSpeed = 185.0
 )
+
+var (
+	FireballSpeed      = 290.0
+	Zoom               = 2.0
+	ZoomSpeed          = 1.1
+	second             = time.Tick(time.Second)
+	MaxMana            = 2324.0
+	MaxHealth          = 347.0
+	OnTargetSpellRange = 450.0
+	AOESpellRange      = 700.0
+	TrapSpellRange     = 100.0
+	FlashSpellRange    = 200.0
+	//Spell intervals
+	BasicSpellInterval    = (time.Second.Seconds() / 10) * 9
+	FireballSpellInterval = (time.Second.Seconds() / 10) * 7
+	IcesnipeSpellInterval = (time.Second.Seconds() / 10) * 8
+	RockSpellInterval     = time.Second.Seconds() * 8
+	LavaSpellInterval     = time.Second.Seconds() * 14
+	ManaSpotSpellInterval = time.Second.Seconds() * 16
+	FlashSpellInterval    = time.Second.Seconds() * 10
+	TrapsChargeInterval   = time.Second.Seconds()
+	FlashChargeInterval   = time.Second.Seconds() * 6
+
+	ArrowMaxCharge = time.Second.Seconds() * 2.5
+	// Ranking
+	Ranking = []models.RankingPosMsg{}
+)
+var (
+	Newline   = []byte{'\n'}
+	BodyUp    = []int{12, 13, 14, 15, 16, 17}
+	BodyDown  = []int{18, 19, 20, 21, 22, 23}
+	BodyLeft  = []int{6, 7, 8, 9, 10}
+	BodyRight = []int{0, 1, 2, 3, 4}
+	DeadUp    = []int{6, 7, 8}
+	DeadDown  = []int{9, 10, 11}
+	DeadLeft  = []int{3, 4, 5}
+	DeadRight = []int{0, 1, 2}
+
+	ApocaFrames       = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
+	BloodFrames       = []int{18, 19, 20, 21, 22, 23, 12, 13, 14, 15, 16, 17, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5}
+	HealingShotFrames = []int{
+		48, 49, 50, 51, 52, 53, 54, 55,
+		40, 41, 42, 43, 44, 45, 46, 47,
+		32, 33, 34, 35, 36, 37, 38, 39,
+		24, 25, 26, 27, 28, 29, 30, 31,
+		16, 17, 18, 19, 20, 21, 22, 23,
+		8, 9, 10, 11, 12, 13, 14, 15,
+		0, 1, 2, 3, 4, 5, 6, 7}
+	RockFrames     = []int{56, 57, 58, 59, 60, 61, 62, 63, 48, 49, 50, 51, 52, 53, 54, 55, 40, 41, 42, 43, 44, 45, 46, 47, 32, 33, 34, 35, 36, 37, 38, 39, 24, 25, 26, 27, 28, 29, 30, 31, 16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7}
+	ArrowHitFrames = []int{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}
+	Pictures       map[string]pixel.Picture
+	Key            KeyConfig
+)
+var basicAtlas = text.NewAtlas(basicfont.Face7x13, text.ASCII)
+var chatlog = NewChatlog()
+
+func main() {
+	pixelgl.Run(run)
+}
 
 //message order [id;name;playerX;playerY;dir;moving]
 
 func run() {
 	Pictures = loadPictures(
 		"./images/apocas.png",
-		"./images/bodies.png",
+		"./images/bodydruida.png",
+		"./images/bodydruidaIcon.png",
 		"./images/heads.png",
 		"./images/trees.png",
+		"./images/dead.png",
+		"./images/deadHead.png",
+		"./images/desca.png",
+		"./images/curaBody.png",
+		"./images/curaHead.png",
+		"./images/arbolmuerto.png",
+		"./images/newGrass.png",
+		"./images/staff.png",
+		"./images/hatpro.png",
+		"./images/horizontalfence.png",
+		"./images/verticalfence.png",
+		"./images/bodyRedIcon.png",
+		"./images/bodyBlueIcon.png",
+		"./images/blueBody.png",
+		"./images/redBody.png",
+		"./images/explosion.png",
+		"./images/fireball.png",
+		"./images/creagod.png",
+		"./images/smallExplosion.png",
+		"./images/talltree.png",
+		"./images/tallnoleafstree.png",
+		"./images/darkopshit.png",
+		"./images/darkopshitIcon.png",
+		"./images/placaazul.png",
+		"./images/placaazulIcon.png",
+		"./images/penumbras.png",
+		"./images/penumbrasIcon.png",
+		"./images/gameIcon.png",
+		"./images/icesnipe.png",
+		"./images/blood.png",
+		"./images/apocaIcon.png",
+		"./images/descaIcon.png",
+		"./images/exploIcon.png",
+		"./images/fireballIcon.png",
+		"./images/icesnipeIcon.png",
+		"./images/lavaSpot.png",
+		"./images/lavaSpotIcon.png",
+		"./images/healingSpot.png",
+		"./images/healingSpotIcon.png",
+		"./images/healingShot.png",
+		"./images/healingShotIcon.png",
+		"./images/manaSpot.png",
+		"./images/manaSpotIcon.png",
+		"./images/manaShot.png",
+		"./images/manaShotIcon.png",
+		"./images/smokeSpot.png",
+		"./images/smokeSpotIcon.png",
+		"./images/flashEffect.png",
+		"./images/flashEffectIcon.png",
+		"./images/rockShot.png",
+		"./images/rockShotIcon.png",
+		"./images/arrowShot.png",
+		"./images/arrowShotIcon.png",
+		"./images/arrowExplo.png",
+		"./images/hunterTrap.png",
+		"./images/hunterTrapIcon.png",
 	)
+	rawConfig, err := ioutil.ReadFile("./key-config.json")
+	if err != nil {
+		panic(err)
+	}
 
-	player := NewPlayer(nil)
-	apocaData := NewApocaData()
+	Key = KeyConfig{}
+	err = json.Unmarshal(rawConfig, &Key)
+	if err != nil {
+		panic(err)
+	}
+
+	ld, err := LoginWindow()
+	if err != nil {
+		log.Fatal(err)
+	}
+	player := NewPlayer(ld.Name, &ld)
+	allSpells := SpellKinds{
+		OnTarget: GameSpells{
+			NewSpellData("apoca", &player),
+			NewSpellData("desca", &player),
+			NewSpellData("explo", &player),
+		},
+		Projectile: GameSpells{
+			NewSpellData("fireball", &player),
+			NewSpellData("icesnipe", &player),
+			NewSpellData("healshot", &player),
+			NewSpellData("manashot", &player),
+			NewSpellData("rockshot", &player),
+		},
+		ChargedProjectile: GameSpells{
+			NewSpellData("arrowshot", &player),
+		},
+		AOE: GameSpells{
+			NewSpellData("lava-spot", &player),
+			NewSpellData("heal-spot", &player),
+			NewSpellData("smoke-spot", &player),
+			NewSpellData("mana-spot", &player),
+		},
+		Movement: GameSpells{
+			NewSpellData("flash", &player),
+		},
+		Trap: GameSpells{
+			NewSpellData("hunter-trap", &player),
+		},
+		Effects: GameSpells{
+			NewSpellData("mini-explo", &player),
+			NewSpellData("blood-explo", &player),
+			NewSpellData("arrow-explo", &player),
+		},
+	}
+
 	forest := NewForest()
+	//buda := NewBuda(pixel.V(2000, 3400))
 	otherPlayers := NewPlayersData()
+	playerInfo := NewPlayerInfo(&player, &otherPlayers, allSpells)
+	resu := NewResu(pixel.V(2000, 2900))
 
-	socket := socket.NewSocket("127.0.0.1", 3333)
+	socket := socket.NewSocket("190.247.147.18", 33333)
 	defer socket.Close()
 
 	cfg := pixelgl.WindowConfig{
-		Title:  "Creative AO",
-		Bounds: pixel.R(0, 0, 500, 500),
+		Title: "Creative AO",
+		//Monitor: pixelgl.PrimaryMonitor(),
+		Bounds: pixel.R(0, 0, 1360, 840),
+		Icon:   []pixel.Picture{Pictures["./images/gameIcon.png"]},
+		//VSync:  true,
 	}
 
 	win, err := pixelgl.NewWindow(cfg)
 	if err != nil {
 		panic(err)
 	}
-
-	go keyInputs(win, &player)
-	go otherPlayers.playersUpdate(socket)
-
+	cursor := NewCursor(win)
+	go keyInputs(win, &player, cursor)
+	go GameUpdate(socket, &otherPlayers, &player, allSpells)
+	fps := 0
+	unatachedCam := false
+	offset := pixel.ZV
+	newCenter := pixel.ZV
 	for !win.Closed() {
-		apocaData.Batch.Clear()
-
-		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
-		win.SetMatrix(cam)
 		win.Clear(colornames.Forestgreen)
+		cam := pixel.IM.Scaled(player.pos, Zoom).Moved(win.Bounds().Center().Sub(player.pos))
 
-		apocaData.Update(win, cam)
-		player.Update()
-		Zoom *= math.Pow(ZoomSpeed, win.MouseScroll().Y)
-		otherPlayers.Draw(win)
-		player.body.Draw(win, player.bodyMatrix)
-		player.head.Draw(win, player.headMatrix)
-		player.name.Draw(win, player.nameMatrix)
+		player.cam = cam
+
+		if win.Pressed(pixelgl.KeyLeftShift) {
+
+			if win.Pressed(pixelgl.MouseButtonRight) {
+
+				if !unatachedCam {
+					unatachedCam = true
+					offset = cam.Unproject(win.MousePosition()).Sub(player.pos)
+					newCenter = cam.Unproject(win.MousePosition()).Sub(newCenter).Sub(offset)
+
+				}
+				newCenter = cam.Unproject(win.MousePosition()).Sub(player.pos).Sub(offset)
+			} else {
+				unatachedCam = false
+			}
+			cam = cam.Moved(newCenter)
+		} else {
+			unatachedCam = false
+		}
+		win.SetMatrix(cam)
+		forest.GrassBatch.Draw(win)
+		forest.FenceBatchHTOP.Draw(win)
+		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
+		resu.Draw(win, cam, &player)
+		otherPlayers.Draw(win, &player)
+		player.Draw(win, socket)
+		player.DrawIngameHud(win, allSpells.ChargedProjectile[0])
+		//buda.Draw(win)
 		forest.Batch.Draw(win)
-		apocaData.Batch.Draw(win)
+		forest.Trees.Draw(win)
+		forest.FenceBatchV.Draw(win)
+		forest.FenceBatchHBOT.Draw(win)
+		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
+		playerInfo.Draw(win, cam, cursor, &ld)
+		chatlog.Draw(win, cam)
+		cursor.Draw(cam, player.pos)
 
-		frames++
-
+		fps++
+		if !player.chat.chatting && win.JustPressed(pixelgl.KeyZ) {
+			if Zoom == 2 {
+				Zoom = 1
+			} else {
+				Zoom = 2
+			}
+		}
 		select {
 		case <-second:
 
-			win.SetTitle(fmt.Sprintf("%s | FPS: %d", cfg.Title, frames))
-			frames = 0
+			playerInfo.nfps = fps
+			fps = 0
 		default:
 		}
 		win.Update()
 		player.clientUpdate(socket)
-
 	}
 }
 
-func main() {
-	pixelgl.Run(run)
+type WizardType int
+
+const (
+	DarkWizard WizardType = iota //tuni negra
+	Monk                         // la celeste
+	Shaman                       // el druida
+	Sniper                       //
+	Timewreker                   //
+	Hunter                       // el rojo
+	Igniter                      // penumbras
+)
+
+type Wizard struct {
+	Name          string
+	Skin          SkinType
+	Type          WizardType
+	SpecialSpells []string
 }
 
-type ApocaData struct {
-	Frames            []pixel.Rect
-	Pic               *pixel.Picture
-	Batch             *pixel.Batch
-	CurrentAnimations []*Apoca
+func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
+	dmm, _ := json.Marshal(d)
+	s.O <- models.NewMesg(models.Death, dmm)
 }
 
-func (ad *ApocaData) Update(win *pixelgl.Window, cam pixel.Matrix) {
-	if win.JustPressed(pixelgl.MouseButtonLeft) {
-		mouse := cam.Unproject(win.MousePosition())
-		newApoca := &Apoca{
-			step:        ad.Frames[ApocaFrames[0]],
-			frameNumber: 0.0,
-			matrix:      pixel.IM.Scaled(pixel.ZV, .7).Moved(mouse),
-			last:        time.Now(),
-		}
-
-		newApoca.frame = pixel.NewSprite(*(ad.Pic), newApoca.step)
-		ad.CurrentAnimations = append(ad.CurrentAnimations, newApoca)
-
-	}
-
-	for i := 0; i <= len(ad.CurrentAnimations)-1; i++ {
-		next, kill := ad.CurrentAnimations[i].NextFrame(ad.Frames)
-		if kill {
-			if i < len(ad.CurrentAnimations)-1 {
-				copy(ad.CurrentAnimations[i:], ad.CurrentAnimations[i+1:])
-			}
-			ad.CurrentAnimations[len(ad.CurrentAnimations)-1] = nil // or the zero ad.vCurrentAnimationslue of T
-			ad.CurrentAnimations = ad.CurrentAnimations[:len(ad.CurrentAnimations)-1]
-			continue
-		}
-		ad.CurrentAnimations[i].step = next
-		ad.CurrentAnimations[i].frame = pixel.NewSprite(*ad.Pic, ad.CurrentAnimations[i].step)
-		ad.CurrentAnimations[i].frame.Draw(ad.Batch, ad.CurrentAnimations[i].matrix)
-	}
-}
-
-func NewApocaData() *ApocaData {
-
-	apocaSheet := Pictures["./images/apocas.png"]
-
-	batch := pixel.NewBatch(&pixel.TrianglesData{}, apocaSheet)
-	var apocaFrames []pixel.Rect
-	for y := apocaSheet.Bounds().Min.Y; y < apocaSheet.Bounds().Max.Y; y += apocaSheet.Bounds().Max.Y / 4 {
-		for x := apocaSheet.Bounds().Min.X; x < apocaSheet.Bounds().Max.X; x += apocaSheet.Bounds().Max.X / 4 {
-			apocaFrames = append(apocaFrames, pixel.R(x, y, x+145, y+145))
-		}
-	}
-	return &ApocaData{
-		Frames:            apocaFrames,
-		Pic:               &apocaSheet,
-		Batch:             batch,
-		CurrentAnimations: make([]*Apoca, 0),
-	}
-}
-
-type Apoca struct {
-	step        pixel.Rect
-	frame       *pixel.Sprite
-	frameNumber float64
-	matrix      pixel.Matrix
-	last        time.Time
-}
-
-func (a *Apoca) NextFrame(apocaFrames []pixel.Rect) (pixel.Rect, bool) {
-	dt := time.Since(a.last).Seconds()
-	a.last = time.Now()
-	a.frameNumber += 21 * dt
-	i := int(a.frameNumber)
-	if i <= len(ApocaFrames)-1 {
-		return apocaFrames[ApocaFrames[i]], false
-	}
-	a.frameNumber = .0
-	return apocaFrames[ApocaFrames[0]], true
-}
-
-type PlayersData struct {
-	BodyFrames, HeadFrames []pixel.Rect
-	BodyPic, HeadPic       *pixel.Picture
-	BodyBatch, HeadBatch   *pixel.Batch
-	CurrentAnimations      map[ksuid.KSUID]*Player
-	AnimationsMutex        *sync.RWMutex
-}
-
-func NewPlayersData() PlayersData {
-	bodySheet := Pictures["./images/bodies.png"]
-	var bodyFrames []pixel.Rect
-	bodyBatch := pixel.NewBatch(&pixel.TrianglesData{}, bodySheet)
-	for y := bodySheet.Bounds().Min.Y; y < bodySheet.Bounds().Max.Y; y += bodySheet.Bounds().Max.Y / 4 {
-		for x := bodySheet.Bounds().Min.X; x < bodySheet.Bounds().Max.X; x += bodySheet.Bounds().Max.X / 6 {
-			bodyFrames = append(bodyFrames, pixel.R(x, y, x+19, y+38))
-		}
-	}
-
-	headSheet := Pictures["./images/heads.png"]
-	headBatch := pixel.NewBatch(&pixel.TrianglesData{}, headSheet)
-
-	var headFrames []pixel.Rect
-	for x := headSheet.Bounds().Min.X; x < headSheet.Bounds().Max.X; x += headSheet.Bounds().Max.X / 4 {
-		headFrames = append(headFrames, pixel.R(x, 0, x+16, 16))
-	}
-
-	return PlayersData{
-		BodyFrames:        bodyFrames,
-		HeadFrames:        headFrames,
-		BodyPic:           &bodySheet,
-		HeadPic:           &headSheet,
-		BodyBatch:         bodyBatch,
-		HeadBatch:         headBatch,
-		CurrentAnimations: map[ksuid.KSUID]*Player{},
-		AnimationsMutex:   &sync.RWMutex{},
-	}
-}
-func (pd *PlayersData) playersUpdate(s *socket.Socket) {
+func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds) {
 	for {
 		select {
 		case data := <-s.I:
-			text := string(data)
-			props := strings.Split(text, ";")
-			if len(props) == 6 {
-				id, _ := ksuid.Parse(props[0])
-				x, _ := strconv.ParseFloat(props[2], 64)
-				y, _ := strconv.ParseFloat(props[3], 64)
-				pos := pixel.V(x, y)
-				pd.AnimationsMutex.Lock()
-				player, ok := pd.CurrentAnimations[id]
-				if !ok {
-					np := NewPlayer(&pos)
-					np.bodyPic = pd.BodyPic
-					np.headPic = pd.HeadPic
-					np.bodyFrames = pd.BodyFrames
-					np.headFrames = pd.HeadFrames
-					pd.CurrentAnimations[id] = &np
-					player, _ = pd.CurrentAnimations[id]
+			msg := models.UnmarshallMesg(data)
+			switch msg.Type {
+			case models.UpdateClient:
+
+				players := []*models.PlayerMsg{}
+				json.Unmarshal(msg.Payload, &players)
+
+				for i := 0; i <= len(players)-1; i++ {
+
+					p := players[i]
+					if p.ID != s.ClientID {
+						pd.AnimationsMutex.Lock()
+						player, ok := pd.CurrentAnimations[p.ID]
+						if !ok {
+							pd.Online++
+							wiz := Wizard{
+								Skin: SkinType(p.Skin),
+							}
+							np := NewPlayer(p.Name, &wiz)
+							pd.CurrentAnimations[p.ID] = &np
+							player, _ = pd.CurrentAnimations[p.ID]
+						}
+						pd.AnimationsMutex.Unlock()
+						player.pos = pixel.V(p.X, p.Y)
+						player.dir = p.Dir
+						player.moving = p.Moving
+						player.dead = p.Dead
+						player.hp = p.HP
+						player.invisible = p.Invisible
+					}
 				}
-				player.updateOnline(props)
-				(*pd.CurrentAnimations[id]) = *player
-				pd.AnimationsMutex.Unlock()
+				break
+			case models.Spell:
 
-			}
-		}
-	}
-}
+				spell := models.SpellMsg{}
+				json.Unmarshal(msg.Payload, &spell)
+				now := time.Now()
+				newSpell := &Spell{
+					spellName:      &spell.SpellName,
+					frameNumber:    0.0,
+					last:           now,
+					projectileLife: now,
+					damageInterval: now,
+				}
 
-func (pd *PlayersData) Draw(win *pixelgl.Window) {
-	pd.BodyBatch.Clear()
-	pd.HeadBatch.Clear()
-	pd.AnimationsMutex.Lock()
-	for key := range pd.CurrentAnimations {
-		player := pd.CurrentAnimations[key]
-		player.Update()
-		player.body.Draw(pd.BodyBatch, player.bodyMatrix)
-		player.head.Draw(pd.HeadBatch, player.headMatrix)
-		//player.name.Draw(win, player.nameMatrix)
-	}
-	pd.AnimationsMutex.Unlock()
+				target := &Player{}
+				if spell.SpellType == "on-target" {
+					if s.ClientID == spell.TargetID {
+						target = p
+					} else {
+						target = pd.CurrentAnimations[spell.TargetID]
+					}
+					newSpell.target = target
+					newSpell.matrix = &target.headMatrix
+				}
+				switch spell.SpellType {
+				case "on-target":
+					for i := range spells.OnTarget {
+						sd := spells.OnTarget[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							target.hp -= sd.Damage
+							if target.hp <= 0 {
+								target.hp = 0
+								target.dead = true
+								if s.ClientID == spell.TargetID {
+									dm := models.DeathMsg{
+										Killed:     s.ClientID,
+										KilledName: sd.Caster.wizard.Name,
+										Killer:     spell.ID,
+										KillerName: pd.CurrentAnimations[spell.ID].sname,
+									}
+									SendDeathEvent(s, dm)
+								}
+							}
+							break
+						}
+					}
+				case "projectile":
+					for i := range spells.Projectile {
+						sd := spells.Projectile[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							centerMatrix := pixel.IM
+							switch spell.SpellName {
+							case "fireball":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+							case "icesnipe":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+							case "healshot", "manashot":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
+							case "rockshot":
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
+							}
+							newSpell.caster = spell.ID
+							newSpell.vel = vel
+							newSpell.pos = caster.pos
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
+					}
+				case "aoe":
+					for i := range spells.AOE {
+						sd := spells.AOE[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.pos = pixel.V(spell.X, spell.Y)
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
+					}
+				case "casted-projectile":
+					for i := range spells.ChargedProjectile {
+						sd := spells.ChargedProjectile[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
+							centerMatrix := pixel.IM
+							if spell.SpellName == "arrowshot" {
+								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+							} else {
+								break
+							}
+							newSpell.chargeTime = spell.ChargeTime
+							newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
+							newSpell.caster = spell.ID
+							newSpell.vel = vel
+							newSpell.pos = caster.pos
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
+					}
+				case "trap":
+					for i := range spells.Trap {
+						sd := spells.Trap[i]
+						if spell.SpellName == sd.SpellName {
+							newSpell.pos = pixel.V(spell.X, spell.Y)
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
+					}
+				case "movement":
+					for i := range spells.Movement {
+						sd := spells.Movement[i]
+						if spell.SpellName == sd.SpellName {
+							caster := pd.CurrentAnimations[spell.ID]
+							newSpell.pos = caster.pos
+							centerMatrix := pixel.IM.Moved(newSpell.pos)
+							newSpell.caster = spell.ID
+							newSpell.matrix = &centerMatrix
+							newSpell.step = sd.Frames[0]
+							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+							break
+						}
+					}
 
-	pd.BodyBatch.Draw(win)
-	pd.HeadBatch.Draw(win)
-}
-
-type Player struct {
-	pos                                pixel.Vec
-	headPic, bodyPic                   *pixel.Picture
-	name                               *text.Text
-	head, body                         *pixel.Sprite
-	headMatrix, bodyMatrix, nameMatrix pixel.Matrix
-	bodyFrames, headFrames             []pixel.Rect
-	dir                                string
-	moving                             bool
-	bodyFrame                          pixel.Rect
-	headFrame                          pixel.Rect
-	bodyStep                           float64
-	last                               time.Time
-}
-
-func NewPlayer(pos *pixel.Vec) Player {
-	p := &Player{}
-	basicAtlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
-	p.name = text.New(pixel.V(-28, 0), basicAtlas)
-	p.name.Color = colornames.Blue
-	fmt.Fprintln(p.name, "creative")
-
-	bodySheet := Pictures["./images/bodies.png"]
-	var bodyFrames []pixel.Rect
-	for y := bodySheet.Bounds().Min.Y; y < bodySheet.Bounds().Max.Y; y += bodySheet.Bounds().Max.Y / 4 {
-		for x := bodySheet.Bounds().Min.X; x < bodySheet.Bounds().Max.X; x += bodySheet.Bounds().Max.X / 6 {
-			bodyFrames = append(bodyFrames, pixel.R(x, y, x+19, y+38))
-		}
-	}
-
-	headSheet := Pictures["./images/heads.png"]
-	var headFrames []pixel.Rect
-	for x := headSheet.Bounds().Min.X; x < headSheet.Bounds().Max.X; x += headSheet.Bounds().Max.X / 4 {
-		headFrames = append(headFrames, pixel.R(x, 0, x+16, 16))
-	}
-	p.last = time.Now()
-	p.bodyFrames = bodyFrames
-	p.headFrames = headFrames
-	p.bodyPic = &bodySheet
-	p.headPic = &headSheet
-	p.dir = "down"
-	p.pos = pixel.ZV
-	if pos != nil {
-		p.pos = *pos
-	}
-	return *p
-}
-
-func (p *Player) clientUpdate(s *socket.Socket) {
-	data := []string{}
-	id := s.ClientID.String()
-	data = []string{
-		id,
-		"name",
-		fmt.Sprint(p.pos.X),
-		fmt.Sprint(p.pos.Y),
-		p.dir,
-		fmt.Sprint(p.moving),
-	}
-	message := strings.Join(data, ";")
-	s.O <- makeMessage([]byte(message))
-
-}
-
-func (p *Player) updateOnline(props []string) {
-	posX, _ := strconv.ParseFloat(props[2], 64)
-	posY, _ := strconv.ParseFloat(props[3], 64)
-	p.pos = pixel.V(posX, posY)
-	p.dir = props[4]
-	p.moving, _ = strconv.ParseBool(props[5])
-}
-
-func (p *Player) Update() *Player {
-	switch p.dir {
-	case "up":
-		p.headFrame = p.headFrames[3]
-		p.bodyFrame = p.getNextBodyFrame(BodyUp)
-	case "down":
-		p.headFrame = p.headFrames[0]
-		p.bodyFrame = p.getNextBodyFrame(BodyDown)
-	case "left":
-		p.headFrame = p.headFrames[2]
-		p.bodyFrame = p.getNextBodyFrame(BodyLeft)
-	case "right":
-		p.headFrame = p.headFrames[1]
-		p.bodyFrame = p.getNextBodyFrame(BodyRight)
-	default:
-		p.headFrame = p.headFrames[0]
-		p.bodyFrame = p.getNextBodyFrame(BodyDown)
-	}
-	p.headMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(1, 25)))
-	p.bodyMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, 0)))
-	p.nameMatrix = pixel.IM.Moved(p.pos.Add(pixel.V(0, -26)))
-	p.head = pixel.NewSprite(*p.headPic, p.headFrame)
-	p.body = pixel.NewSprite(*p.bodyPic, p.bodyFrame)
-	return p
-}
-
-func (p *Player) getNextBodyFrame(dirFrames []int) pixel.Rect {
-	dt := time.Since(p.last).Seconds()
-	p.last = time.Now()
-	if p.moving {
-		if (p.bodyStep <= 5 && (p.dir == "up" || p.dir == "down")) || (p.bodyStep <= 4 && (p.dir == "right" || p.dir == "left")) {
-			p.bodyStep += 10 * dt
-			newFrame := int(p.bodyStep)
-			return p.bodyFrames[dirFrames[newFrame]]
-		}
-		p.bodyStep = 0
-		return p.bodyFrames[dirFrames[0]]
-	}
-	p.bodyStep = 0
-	return p.bodyFrames[dirFrames[0]]
-}
-
-type Forest struct {
-	Pic    pixel.Picture
-	Frames []pixel.Rect
-	Batch  *pixel.Batch
-}
-
-func NewForest() *Forest {
-	treeSheet := Pictures["./images/trees.png"]
-	treeBatch := pixel.NewBatch(&pixel.TrianglesData{}, treeSheet)
-	var treeFrames []pixel.Rect
-	for x := treeSheet.Bounds().Min.X; x < treeSheet.Bounds().Max.X; x += 32 {
-		for y := treeSheet.Bounds().Min.Y; y < treeSheet.Bounds().Max.Y; y += 32 {
-			treeFrames = append(treeFrames, pixel.R(x, y, x+32, y+32))
-		}
-	}
-	for i := 0; i <= TreeQuantity; i++ {
-		pos := pixel.ZV
-		dirX := rand.Float64()
-		dirY := rand.Float64()
-		if dirX < .5 {
-			pos = pos.Add(pixel.V(dirX*4000, 0))
-		} else {
-			pos = pos.Sub(pixel.V(-dirX*4000, 0))
-		}
-		if dirY < .5 {
-			pos = pos.Add(pixel.V(0, dirY*4000))
-		} else {
-			pos = pos.Sub(pixel.V(0, -dirY*4000))
-		}
-		tree := pixel.NewSprite(treeSheet, treeFrames[rand.Intn(len(treeFrames))])
-		tree.Draw(treeBatch, pixel.IM.Scaled(pixel.ZV, 3.5).Moved(pos))
-	}
-	return &Forest{
-		Pic:    treeSheet,
-		Frames: treeFrames,
-		Batch:  treeBatch,
-	}
-}
-
-func loadPicture(path string) (pixel.Picture, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	img, _, err := image.Decode(file)
-	if err != nil {
-		return nil, err
-	}
-	return pixel.PictureDataFromImage(img), nil
-}
-
-func loadPictures(files ...string) map[string]pixel.Picture {
-	var wg sync.WaitGroup
-	var m sync.Mutex
-
-	filesLength := len(files)
-	contents := make(map[string]pixel.Picture, filesLength)
-	wg.Add(filesLength)
-
-	for _, file := range files {
-		go func(file string) {
-			content, err := loadPicture(file)
-
-			if err != nil {
-				log.Fatal(err)
+				}
+			case models.Chat:
+				chatMsg := models.ChatMsg{}
+				json.Unmarshal(msg.Payload, &chatMsg)
+				pd.CurrentAnimations[chatMsg.ID].chat.WriteSent(chatMsg.ID, chatMsg.Name, chatMsg.Message)
+			case models.UpdateRanking:
+				rankingMsg := []models.RankingPosMsg{}
+				json.Unmarshal(msg.Payload, &rankingMsg)
+				Ranking = rankingMsg
+				for i := range Ranking {
+					if Ranking[i].ID == s.ClientID {
+						p.kills = Ranking[i].K
+						p.deaths = Ranking[i].D
+					}
+				}
+			case models.Disconect:
+				m := models.DisconectMsg{}
+				json.Unmarshal(msg.Payload, &m)
+				if _, exist := pd.CurrentAnimations[m.ID]; exist {
+					pd.Online--
+					pd.AnimationsMutex.Lock()
+					delete(pd.CurrentAnimations, m.ID)
+					pd.AnimationsMutex.Unlock()
+				}
 			}
 
-			m.Lock()
-			contents[file] = content
-			m.Unlock()
-			wg.Done()
-		}(file)
-	}
-
-	wg.Wait()
-
-	return contents
-}
-
-func keyInputs(win *pixelgl.Window, player *Player) {
-	last := time.Now()
-	const (
-		KeyUp    = pixelgl.KeyW
-		KeyDown  = pixelgl.KeyS
-		KeyLeft  = pixelgl.KeyA
-		KeyRight = pixelgl.KeyD
-	)
-
-	timeMap := map[pixelgl.Button]int{
-		KeyUp:    -1,
-		KeyDown:  -1,
-		KeyLeft:  -1,
-		KeyRight: -1,
-	}
-
-	latestPressed := func(keyPressed pixelgl.Button, m map[pixelgl.Button]int) bool {
-		var key pixelgl.Button
-		min := 99999999999999
-		for k, v := range m {
-			if v < min && v > 0 {
-				key = k
-				min = v
-			}
-		}
-		return key == keyPressed
-	}
-
-	for !win.Closed() {
-		dt := time.Since(last).Seconds()
-		last = time.Now()
-
-		if win.Pressed(KeyLeft) {
-			if latestPressed(KeyLeft, timeMap) {
-				player.moving = true
-				player.dir = "left"
-				player.pos.X -= camSpeed * dt
-			}
-			timeMap[KeyLeft]++
-		} else {
-			timeMap[KeyLeft] = -1
-		}
-
-		if win.Pressed(KeyRight) {
-			if latestPressed(KeyRight, timeMap) {
-				player.moving = true
-				player.dir = "right"
-				player.pos.X += camSpeed * dt
-			}
-			timeMap[KeyRight]++
-		} else {
-			timeMap[KeyRight] = -1
-		}
-
-		if win.Pressed(KeyDown) {
-			if latestPressed(KeyDown, timeMap) {
-				player.moving = true
-				player.dir = "down"
-				player.pos.Y -= camSpeed * dt
-			}
-			timeMap[KeyDown]++
-
-		} else {
-			timeMap[KeyDown] = -1
-		}
-
-		if win.Pressed(KeyUp) {
-			if latestPressed(KeyUp, timeMap) {
-				player.moving = true
-				player.dir = "up"
-				player.pos.Y += camSpeed * dt
-			}
-			timeMap[KeyUp]++
-		} else {
-			timeMap[KeyUp] = -1
-		}
-
-		if timeMap[KeyUp] == -1 && timeMap[KeyDown] == -1 && timeMap[KeyLeft] == -1 && timeMap[KeyRight] == -1 {
-			player.moving = false
 		}
 	}
 }
