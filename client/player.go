@@ -184,21 +184,9 @@ func (p *Player) DrawHealthMana(win *pixelgl.Window) {
 	info.Draw(win)
 }
 
-func (p *Player) DrawIngameHud(win *pixelgl.Window, arrawSpells *SpellData) {
+func (p *Player) DrawIngameHud(win *pixelgl.Window) {
 	arrowChargeBar := p.cam.Unproject(win.Bounds().Center()).Add(pixel.V(-16, 38))
 	info := imdraw.New(nil)
-	if p.wizard.Type == Hunter && arrawSpells.ChargingSpell {
-		info.EndShape = imdraw.SharpEndShape
-		info.Color = colornames.Beige
-		castTime := Map(time.Since(arrawSpells.StartProjCharge).Seconds(), 0, ArrowMaxCharge, 0, 32)
-		info.Push(
-			arrowChargeBar.Add(pixel.V(0, 0)),
-			arrowChargeBar.Add(pixel.V(castTime, 0)),
-			arrowChargeBar.Add(pixel.V(0, -2)),
-			arrowChargeBar.Add(pixel.V(castTime, -2)),
-		)
-		info.Rectangle(0)
-	}
 	healthBar := arrowChargeBar.Add(pixel.V(0, -61))
 	info.Color = colornames.Black
 	info.EndShape = imdraw.SharpEndShape

@@ -6,74 +6,91 @@ import (
 	"time"
 
 	"github.com/faiface/pixel"
+	"github.com/faiface/pixel/imdraw"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/juanefec/go-pixel-ao/client/socket"
 	"github.com/juanefec/go-pixel-ao/models"
 	"github.com/segmentio/ksuid"
+	"golang.org/x/image/colornames"
 )
 
-type SpellKinds struct {
-	OnTarget,
-	Projectile,
-	ChargedProjectile,
-	AOE,
-	Trap,
-	Movement,
-	Effects GameSpells
+func InitSpells(player *Player) (GameSpells, GameEffects) {
+	apoca := OnTargetSpellData{SpellData: NewSpellData("apoca", player)}
+	desca := OnTargetSpellData{SpellData: NewSpellData("desca", player)}
+	explo := OnTargetSpellData{SpellData: NewSpellData("explo", player)}
+	mini_explo := OnTargetSpellData{SpellData: NewSpellData("mini-explo", player)}
+	blood_explo := OnTargetSpellData{SpellData: NewSpellData("blood-explo", player)}
+	arrow_explo := OnTargetSpellData{SpellData: NewSpellData("arrow-explo", player)}
+
+	fireball := ProjectileSpellData{SpellData: NewSpellData("fireball", player)}
+	icesnipe := ProjectileSpellData{SpellData: NewSpellData("icesnipe", player)}
+	healshot := ProjectileSpellData{SpellData: NewSpellData("healshot", player)}
+	manashot := ProjectileSpellData{SpellData: NewSpellData("manashot", player)}
+	rockshot := ProjectileSpellData{SpellData: NewSpellData("rockshot", player)}
+
+	arrowshot := CastedProjectileSpellData{SpellData: NewSpellData("arrowshot", player)}
+
+	lava_spot := AOESpellData{SpellData: NewSpellData("lava-spot", player)}
+	heal_spot := AOESpellData{SpellData: NewSpellData("heal-spot", player)}
+	smoke_spot := AOESpellData{SpellData: NewSpellData("smoke-spot", player)}
+	mana_spot := AOESpellData{SpellData: NewSpellData("mana-spot", player)}
+
+	flash := MovementSpellData{SpellData: NewSpellData("flash", player)}
+
+	hunter_trap := TrapSpellData{SpellData: NewSpellData("hunter-trap", player)}
+
+	allSpells := GameSpells{}
+	allSpells.AddSpell(&apoca)
+	allSpells.AddSpell(&desca)
+	allSpells.AddSpell(&explo)
+
+	allSpells.AddSpell(&fireball)
+	allSpells.AddSpell(&icesnipe)
+	allSpells.AddSpell(&healshot)
+	allSpells.AddSpell(&manashot)
+	allSpells.AddSpell(&rockshot)
+
+	allSpells.AddSpell(&arrowshot)
+
+	allSpells.AddSpell(&lava_spot)
+	allSpells.AddSpell(&heal_spot)
+	allSpells.AddSpell(&smoke_spot)
+	allSpells.AddSpell(&mana_spot)
+
+	allSpells.AddSpell(&flash)
+
+	allSpells.AddSpell(&hunter_trap)
+
+	allEffects := GameEffects{}
+	allEffects.AddSpellEffect(&mini_explo)
+	allEffects.AddSpellEffect(&blood_explo)
+	allEffects.AddSpellEffect(&arrow_explo)
+
+	return allSpells, allEffects
 }
 
-func (sk *SpellKinds) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
-	sk.OnTarget.Draw(win, cam, s, pd, cursor)
-	sk.Projectile.Draw(win, cam, s, pd, cursor, sk.Effects...)
-	sk.ChargedProjectile.Draw(win, cam, s, pd, cursor, sk.Effects...)
-	sk.Effects.Draw(win, cam, s, pd, cursor)
-	sk.AOE.Draw(win, cam, s, pd, cursor)
-	sk.Movement.Draw(win, cam, s, pd, cursor)
-}
+type GameEffects []Spells
 
-type GameSpells []*SpellData
-
-func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
-	switch gs[0].SpellType {
-	case "on-target":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateOnTarget(win, cam, s, pd, cursor)
-			gs[i].Batch.Draw(win)
-		}
-	case "projectile":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateProjectiles(win, cam, s, pd, cursor, effects...)
-			gs[i].Batch.Draw(win)
-		}
-	case "aoe":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateAOE(win, cam, s, pd, cursor)
-			gs[i].Batch.Draw(win)
-		}
-	case "movement":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateMovement(win, cam, s, pd, cursor)
-			gs[i].Batch.Draw(win)
-		}
-	case "trap":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateTrap(win, cam, s, pd, cursor)
-			gs[i].Batch.Draw(win)
-		}
-	case "casted-projectile":
-		for i := range gs {
-			gs[i].Batch.Clear()
-			gs[i].UpdateCastedProjectile(win, cam, s, pd, cursor, effects...)
-			gs[i].Batch.Draw(win)
-		}
-
+func (ge GameEffects) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+	for i := range ge {
+		ge[i].Update(win, cam, s, pd, cursor)
 	}
+}
 
+func (gs *GameEffects) AddSpellEffect(spell Spells) {
+	*gs = append(*gs, spell)
+}
+
+type GameSpells []Spells
+
+func (gs *GameSpells) AddSpell(spell Spells) {
+	*gs = append(*gs, spell)
+}
+
+func (gs GameSpells) Draw(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects GameEffects) {
+	for i := range gs {
+		gs[i].Update(win, cam, s, pd, cursor, effects...)
+	}
 }
 
 type SpellData struct {
@@ -102,7 +119,37 @@ type SpellData struct {
 	CurrentAnimations []*Spell
 }
 
-func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+func (sd *SpellData) Name() string { return sd.SpellName }
+
+func (sd *SpellData) GetInterval() float64 { return sd.Interval }
+
+func (sd *SpellData) GetMaxCharges() int { return sd.MaxCharges }
+
+func (sd *SpellData) GetFirstCharge() time.Time { return sd.FirstCharge }
+
+func (sd *SpellData) GetCharges() int { return sd.Charges }
+
+func (sd *SpellData) AddEffect(effect *Spell) {
+	sd.CurrentAnimations = append(sd.CurrentAnimations, effect)
+}
+
+type Spells interface {
+	Update(*pixelgl.Window, pixel.Matrix, *socket.Socket, *PlayersData, *Cursor, ...Spells)
+	AddEffect(*Spell)
+	UpdateFromServer(*Spell, *PlayersData, models.SpellMsg, *socket.Socket)
+	Name() string
+	GetInterval() float64
+	GetMaxCharges() int
+	GetFirstCharge() time.Time
+	GetCharges() int
+}
+
+/*********************** OnTarget *************************/
+
+type OnTargetSpellData struct{ *SpellData }
+
+func (sd *OnTargetSpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, _ ...Spells) {
+	sd.Batch.Clear()
 	dt := time.Since(sd.Caster.lastCast).Seconds()
 	if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.MouseButtonLeft) && !sd.Caster.dead && cursor.Mode == sd.SpellMode && Normal != sd.SpellMode {
 		if dt >= sd.Interval {
@@ -165,10 +212,34 @@ func (sd *SpellData) UpdateOnTarget(win *pixelgl.Window, cam pixel.Matrix, s *so
 		}
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].target.pos, scale))
 	}
-
+	sd.Batch.Draw(win)
+}
+func (sd *OnTargetSpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, s *socket.Socket) {
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
+	newSpell.target.hp -= sd.Damage
+	if newSpell.target.hp <= 0 {
+		newSpell.target.hp = 0
+		newSpell.target.dead = true
+		if s.ClientID == spellmsg.TargetID {
+			dm := models.DeathMsg{
+				Killed:     s.ClientID,
+				KilledName: sd.Caster.wizard.Name,
+				Killer:     spellmsg.ID,
+				KillerName: pd.CurrentAnimations[spellmsg.ID].sname,
+			}
+			SendDeathEvent(s, dm)
+		}
+	}
 }
 
-func (sd *SpellData) UpdateProjectiles(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
+/*********************** Projectile *************************/
+
+type ProjectileSpellData struct{ *SpellData }
+
+func (sd *ProjectileSpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...Spells) {
+	sd.Batch.Clear()
 	dtproj := time.Since(sd.Caster.lastCastPrimary).Seconds()
 	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if dtproj >= sd.ChargeInterval {
@@ -193,7 +264,7 @@ func (sd *SpellData) UpdateProjectiles(win *pixelgl.Window, cam pixel.Matrix, s 
 
 				projectedCenter := cam.Unproject(win.Bounds().Center())
 				vel := mouse.Sub(projectedCenter)
-				centerMatrix := pixel.IM
+				centerMatrix := sd.Caster.bodyMatrix
 				switch sd.SpellName {
 				case "fireball":
 					centerMatrix = sd.Caster.bodyMatrix.Rotated(projectedCenter, vel.Angle()+(math.Pi/2)).Scaled(projectedCenter, 2)
@@ -260,8 +331,8 @@ FBALLS:
 					last:        time.Now(),
 				}
 				for i := range effects {
-					if ("mini-explo" == effects[i].SpellName && sd.SpellName == "fireball") || ("blood-explo" == effects[i].SpellName && sd.SpellName == "icesnipe") {
-						effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
+					if ("mini-explo" == effects[i].Name() && sd.SpellName == "fireball") || ("blood-explo" == effects[i].Name() && sd.SpellName == "icesnipe") {
+						effects[i].AddEffect(effect)
 					}
 				}
 
@@ -288,18 +359,18 @@ FBALLS:
 				last:        time.Now(),
 			}
 			for i := range effects {
-				if "mini-explo" == effects[i].SpellName && sd.SpellName == "fireball" {
+				if "mini-explo" == effects[i].Name() && sd.SpellName == "fireball" {
 					sd.Caster.hp -= sd.Damage
-					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
+					effects[i].AddEffect(effect)
 				}
-				if "blood-explo" == effects[i].SpellName && sd.SpellName == "icesnipe" {
+				if "blood-explo" == effects[i].Name() && sd.SpellName == "icesnipe" {
 					if pd.CurrentAnimations[casterID].sname == "   creagod   " {
 						sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 600, 15, float64(sd.Damage)*3)
 					} else {
 						sd.Caster.hp -= Map(Dist(sd.Caster.pos, pd.CurrentAnimations[casterID].pos), 0, 500, 15, float64(sd.Damage))
 					}
 
-					effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
+					effects[i].AddEffect(effect)
 				}
 
 			}
@@ -344,10 +415,37 @@ FBALLS:
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
-
+	sd.Batch.Draw(win)
+}
+func (sd *ProjectileSpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, _ *socket.Socket) {
+	caster := pd.CurrentAnimations[spellmsg.ID]
+	vel := pixel.V(spellmsg.X, spellmsg.Y).Sub(caster.pos)
+	centerMatrix := pixel.IM
+	switch spellmsg.SpellName {
+	case "fireball":
+		centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
+	case "icesnipe":
+		centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
+	case "healshot", "manashot":
+		centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
+	case "rockshot":
+		centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
+	}
+	newSpell.caster = spellmsg.ID
+	newSpell.vel = vel
+	newSpell.pos = caster.pos
+	newSpell.matrix = &centerMatrix
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 }
 
-func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...*SpellData) {
+/*********************** CastedProjectile *************************/
+
+type CastedProjectileSpellData struct{ *SpellData }
+
+func (sd *CastedProjectileSpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, effects ...Spells) {
+	sd.Batch.Clear()
 	dtproj := time.Since(sd.Caster.lastCastPrimary).Seconds()
 	if !sd.Caster.chat.chatting && (win.JustPressed(pixelgl.Button(Key.PrimarySkill)) && sd.Charges > 0 && sd.Caster.wizard.Type == sd.WizardCaster) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
 		if !sd.ChargingSpell {
@@ -429,6 +527,21 @@ func (sd *SpellData) UpdateCastedProjectile(win *pixelgl.Window, cam pixel.Matri
 			}
 		}
 	}
+	if sd.Caster.wizard.Type == sd.WizardCaster && !sd.Caster.dead && sd.ChargingSpell {
+		arrowChargeBar := sd.Caster.cam.Unproject(win.Bounds().Center()).Add(pixel.V(-16, 38))
+		info := imdraw.New(nil)
+		info.EndShape = imdraw.SharpEndShape
+		info.Color = colornames.Beige
+		castTime := Map(time.Since(sd.StartProjCharge).Seconds(), 0, ArrowMaxCharge, 0, 32)
+		info.Push(
+			arrowChargeBar.Add(pixel.V(0, 0)),
+			arrowChargeBar.Add(pixel.V(castTime, 0)),
+			arrowChargeBar.Add(pixel.V(0, -2)),
+			arrowChargeBar.Add(pixel.V(castTime, -2)),
+		)
+		info.Rectangle(0)
+		info.Draw(win)
+	}
 
 FBALLS:
 	for i := 0; i <= len(sd.CurrentAnimations)-1; i++ {
@@ -456,8 +569,8 @@ FBALLS:
 				}
 
 				for i := range effects {
-					if "arrow-explo" == effects[i].SpellName && sd.SpellName == "arrowshot" {
-						effects[i].CurrentAnimations = append(effects[i].CurrentAnimations, effect)
+					if "arrow-explo" == effects[i].Name() && sd.SpellName == "arrowshot" {
+						effects[i].AddEffect(effect)
 					}
 				}
 
@@ -490,10 +603,10 @@ FBALLS:
 				chargeTime:  sd.CurrentAnimations[i].chargeTime,
 			}
 			for e := range effects {
-				if "arrow-explo" == effects[e].SpellName && sd.SpellName == "arrowshot" {
+				if "arrow-explo" == effects[e].Name() && sd.SpellName == "arrowshot" {
 
 					sd.Caster.hp -= Map(sd.CurrentAnimations[i].chargeTime, 0, ArrowMaxCharge, 25, float64(sd.Damage))
-					effects[e].CurrentAnimations = append(effects[e].CurrentAnimations, effect)
+					effects[e].AddEffect(effect)
 				}
 
 			}
@@ -527,10 +640,33 @@ FBALLS:
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
+	sd.Batch.Draw(win)
+}
+func (sd *CastedProjectileSpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, _ *socket.Socket) {
+	caster := pd.CurrentAnimations[spellmsg.ID]
+	vel := pixel.V(spellmsg.X, spellmsg.Y).Sub(caster.pos)
+	centerMatrix := pixel.IM
+	if spellmsg.SpellName == "arrowshot" {
+		centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
+	}
 
+	newSpell.chargeTime = spellmsg.ChargeTime
+	newSpell.cspeed = Map(spellmsg.ChargeTime, 0, ArrowMaxCharge, 210, sd.ProjSpeed)
+	newSpell.caster = spellmsg.ID
+	newSpell.vel = vel
+	newSpell.pos = caster.pos
+	newSpell.matrix = &centerMatrix
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 }
 
-func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+/***********************     AOE     *************************/
+
+type AOESpellData struct{ *SpellData }
+
+func (sd *AOESpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, _ ...Spells) {
+	sd.Batch.Clear()
 	if (sd.Caster.wizard.Type == Shaman && sd.SpellName == "mana-spot") ||
 		(sd.Caster.wizard.Type == Monk && sd.SpellName == "heal-spot") ||
 		(sd.Caster.wizard.Type == DarkWizard && sd.SpellName == "lava-spot") ||
@@ -644,10 +780,24 @@ func (sd *SpellData) UpdateAOE(win *pixelgl.Window, cam pixel.Matrix, s *socket.
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
-
+	sd.Batch.Draw(win)
+}
+func (sd *AOESpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, _ *socket.Socket) {
+	newSpell.pos = pixel.V(spellmsg.X, spellmsg.Y)
+	centerMatrix := pixel.IM.Moved(newSpell.pos)
+	newSpell.caster = spellmsg.ID
+	newSpell.matrix = &centerMatrix
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 }
 
-func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+/***********************     Trap     *************************/
+
+type TrapSpellData struct{ *SpellData }
+
+func (sd *TrapSpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, _ ...Spells) {
+	sd.Batch.Clear()
 	if sd.Caster.wizard.Type == Hunter && sd.SpellName == "hunter-trap" {
 		dt := time.Since(sd.Caster.lastCastSecondary).Seconds()
 		if !sd.Caster.chat.chatting && win.JustPressed(pixelgl.Button(Key.SecondarySkill)) && !sd.Caster.dead && sd.Caster.mp >= sd.ManaCost {
@@ -759,10 +909,24 @@ func (sd *SpellData) UpdateTrap(win *pixelgl.Window, cam pixel.Matrix, s *socket
 			sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 		}
 	}
-
+	sd.Batch.Draw(win)
+}
+func (sd *TrapSpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, _ *socket.Socket) {
+	newSpell.pos = pixel.V(spellmsg.X, spellmsg.Y)
+	centerMatrix := pixel.IM.Moved(newSpell.pos)
+	newSpell.caster = spellmsg.ID
+	newSpell.matrix = &centerMatrix
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 }
 
-func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor) {
+/***********************     Movement     *************************/
+
+type MovementSpellData struct{ *SpellData }
+
+func (sd *MovementSpellData) Update(win *pixelgl.Window, cam pixel.Matrix, s *socket.Socket, pd *PlayersData, cursor *Cursor, _ ...Spells) {
+	sd.Batch.Clear()
 	if sd.Caster.sname == "   creagod   " {
 		if win.JustPressed(pixelgl.KeyLeftShift) {
 			mouse := cam.Unproject(win.MousePosition())
@@ -869,7 +1033,17 @@ func (sd *SpellData) UpdateMovement(win *pixelgl.Window, cam pixel.Matrix, s *so
 		sd.CurrentAnimations[i].frame = pixel.NewSprite(*sd.Pic, sd.CurrentAnimations[i].step)
 		sd.CurrentAnimations[i].frame.Draw(sd.Batch, (*sd.CurrentAnimations[i].matrix).Scaled(sd.CurrentAnimations[i].pos, sd.ScaleF))
 	}
-
+	sd.Batch.Draw(win)
+}
+func (sd *MovementSpellData) UpdateFromServer(newSpell *Spell, pd *PlayersData, spellmsg models.SpellMsg, _ *socket.Socket) {
+	caster := pd.CurrentAnimations[spellmsg.ID]
+	newSpell.pos = caster.pos
+	centerMatrix := pixel.IM.Moved(newSpell.pos)
+	newSpell.caster = spellmsg.ID
+	newSpell.matrix = &centerMatrix
+	newSpell.step = sd.Frames[0]
+	newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
+	sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
 }
 
 func NewSpellData(spell string, caster *Player) *SpellData {

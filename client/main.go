@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"log"
-	"math"
 	"time"
 
 	_ "image/png"
@@ -163,40 +162,8 @@ func run() {
 		log.Fatal(err)
 	}
 	player := NewPlayer(ld.Name, &ld)
-	allSpells := SpellKinds{
-		OnTarget: GameSpells{
-			NewSpellData("apoca", &player),
-			NewSpellData("desca", &player),
-			NewSpellData("explo", &player),
-		},
-		Projectile: GameSpells{
-			NewSpellData("fireball", &player),
-			NewSpellData("icesnipe", &player),
-			NewSpellData("healshot", &player),
-			NewSpellData("manashot", &player),
-			NewSpellData("rockshot", &player),
-		},
-		ChargedProjectile: GameSpells{
-			NewSpellData("arrowshot", &player),
-		},
-		AOE: GameSpells{
-			NewSpellData("lava-spot", &player),
-			NewSpellData("heal-spot", &player),
-			NewSpellData("smoke-spot", &player),
-			NewSpellData("mana-spot", &player),
-		},
-		Movement: GameSpells{
-			NewSpellData("flash", &player),
-		},
-		Trap: GameSpells{
-			NewSpellData("hunter-trap", &player),
-		},
-		Effects: GameSpells{
-			NewSpellData("mini-explo", &player),
-			NewSpellData("blood-explo", &player),
-			NewSpellData("arrow-explo", &player),
-		},
-	}
+
+	allSpells, allEffects := InitSpells(&player)
 
 	forest := NewForest()
 	//buda := NewBuda(pixel.V(2000, 3400))
@@ -253,17 +220,17 @@ func run() {
 		win.SetMatrix(cam)
 		forest.GrassBatch.Draw(win)
 		forest.FenceBatchHTOP.Draw(win)
-		allSpells.Trap.Draw(win, cam, socket, &otherPlayers, cursor)
 		resu.Draw(win, cam, &player)
 		otherPlayers.Draw(win, &player)
 		player.Draw(win, socket)
-		player.DrawIngameHud(win, allSpells.ChargedProjectile[0])
+		player.DrawIngameHud(win)
 		//buda.Draw(win)
 		forest.Batch.Draw(win)
 		forest.Trees.Draw(win)
 		forest.FenceBatchV.Draw(win)
 		forest.FenceBatchHBOT.Draw(win)
-		allSpells.Draw(win, cam, socket, &otherPlayers, cursor)
+		allSpells.Draw(win, cam, socket, &otherPlayers, cursor, allEffects)
+		allEffects.Draw(win, cam, socket, &otherPlayers, cursor)
 		playerInfo.Draw(win, cam, cursor, &ld)
 		chatlog.Draw(win, cam)
 		cursor.Draw(cam, player.pos)
@@ -278,7 +245,6 @@ func run() {
 		}
 		select {
 		case <-second:
-
 			playerInfo.nfps = fps
 			fps = 0
 		default:
@@ -312,7 +278,7 @@ func SendDeathEvent(s *socket.Socket, d models.DeathMsg) {
 	s.O <- models.NewMesg(models.Death, dmm)
 }
 
-func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds) {
+func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells GameSpells) {
 	for {
 		select {
 		case data := <-s.I:
@@ -371,127 +337,12 @@ func GameUpdate(s *socket.Socket, pd *PlayersData, p *Player, spells SpellKinds)
 					newSpell.target = target
 					newSpell.matrix = &target.headMatrix
 				}
-				switch spell.SpellType {
-				case "on-target":
-					for i := range spells.OnTarget {
-						sd := spells.OnTarget[i]
-						if spell.SpellName == sd.SpellName {
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							target.hp -= sd.Damage
-							if target.hp <= 0 {
-								target.hp = 0
-								target.dead = true
-								if s.ClientID == spell.TargetID {
-									dm := models.DeathMsg{
-										Killed:     s.ClientID,
-										KilledName: sd.Caster.wizard.Name,
-										Killer:     spell.ID,
-										KillerName: pd.CurrentAnimations[spell.ID].sname,
-									}
-									SendDeathEvent(s, dm)
-								}
-							}
-							break
-						}
+				for i := range spells {
+					if spells[i].Name() == spell.SpellName {
+						spells[i].UpdateFromServer(newSpell, pd, spell, s)
 					}
-				case "projectile":
-					for i := range spells.Projectile {
-						sd := spells.Projectile[i]
-						if spell.SpellName == sd.SpellName {
-							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
-							centerMatrix := pixel.IM
-							switch spell.SpellName {
-							case "fireball":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 2)
-							case "icesnipe":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()).Scaled(caster.pos, .6)
-							case "healshot", "manashot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, .6)
-							case "rockshot":
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle())
-							}
-							newSpell.caster = spell.ID
-							newSpell.vel = vel
-							newSpell.pos = caster.pos
-							newSpell.matrix = &centerMatrix
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							break
-						}
-					}
-				case "aoe":
-					for i := range spells.AOE {
-						sd := spells.AOE[i]
-						if spell.SpellName == sd.SpellName {
-							newSpell.pos = pixel.V(spell.X, spell.Y)
-							centerMatrix := pixel.IM.Moved(newSpell.pos)
-							newSpell.caster = spell.ID
-							newSpell.matrix = &centerMatrix
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							break
-						}
-					}
-				case "casted-projectile":
-					for i := range spells.ChargedProjectile {
-						sd := spells.ChargedProjectile[i]
-						if spell.SpellName == sd.SpellName {
-							caster := pd.CurrentAnimations[spell.ID]
-							vel := pixel.V(spell.X, spell.Y).Sub(caster.pos)
-							centerMatrix := pixel.IM
-							if spell.SpellName == "arrowshot" {
-								centerMatrix = caster.bodyMatrix.Rotated(caster.pos, vel.Angle()+(math.Pi/2)).Scaled(caster.pos, 3)
-							} else {
-								break
-							}
-							newSpell.chargeTime = spell.ChargeTime
-							newSpell.cspeed = Map(spell.ChargeTime, 0, ArrowMaxCharge, 210, spells.ChargedProjectile[i].ProjSpeed)
-							newSpell.caster = spell.ID
-							newSpell.vel = vel
-							newSpell.pos = caster.pos
-							newSpell.matrix = &centerMatrix
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							break
-						}
-					}
-				case "trap":
-					for i := range spells.Trap {
-						sd := spells.Trap[i]
-						if spell.SpellName == sd.SpellName {
-							newSpell.pos = pixel.V(spell.X, spell.Y)
-							centerMatrix := pixel.IM.Moved(newSpell.pos)
-							newSpell.caster = spell.ID
-							newSpell.matrix = &centerMatrix
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							break
-						}
-					}
-				case "movement":
-					for i := range spells.Movement {
-						sd := spells.Movement[i]
-						if spell.SpellName == sd.SpellName {
-							caster := pd.CurrentAnimations[spell.ID]
-							newSpell.pos = caster.pos
-							centerMatrix := pixel.IM.Moved(newSpell.pos)
-							newSpell.caster = spell.ID
-							newSpell.matrix = &centerMatrix
-							newSpell.step = sd.Frames[0]
-							newSpell.frame = pixel.NewSprite(*(sd.Pic), newSpell.step)
-							sd.CurrentAnimations = append(sd.CurrentAnimations, newSpell)
-							break
-						}
-					}
-
 				}
+
 			case models.Chat:
 				chatMsg := models.ChatMsg{}
 				json.Unmarshal(msg.Payload, &chatMsg)
