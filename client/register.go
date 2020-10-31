@@ -7,7 +7,7 @@ import (
 	"github.com/faiface/pixel"
 	"github.com/faiface/pixel/pixelgl"
 	"github.com/faiface/pixel/text"
-	"github.com/golang/image/colornames"
+	"golang.org/x/image/colornames"
 	"golang.org/x/image/font/basicfont"
 )
 
@@ -20,7 +20,10 @@ const (
 
 func LoginWindow() (Wizard, error) {
 
-	atlas := text.NewAtlas(basicfont.Face7x13, text.ASCII)
+	atlas := text.NewAtlas(
+		basicfont.Face7x13,
+		text.ASCII,
+	)
 	nickname := text.New(pixel.V(50, 100), atlas)
 	nickname.Color = colornames.Lightgrey
 
